@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.next/
+.env
+uploads/
+*.log
+coverage/
+.DS_Store
+*.pem
+apps/api/src/db/prisma/migrations/
+

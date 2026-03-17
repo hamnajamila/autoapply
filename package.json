@@ -1,0 +1,26 @@
+{
+  "name": "autoapply",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20 <21"
+  },
+  "scripts": {
+    "dev": "concurrently -n api,worker,web -c \"cyan,magenta,green\" \"npm run -w apps/api dev\" \"npm run -w apps/api worker:dev\" \"npm run -w apps/web dev\"",
+    "build": "npm run -w packages/shared build && npm run -w apps/api build && npm run -w apps/web build",
+    "typecheck": "npm run -w packages/shared typecheck && npm run -w apps/api typecheck && npm run -w apps/web typecheck",
+    "lint": "npm run -w apps/api lint && npm run -w apps/web lint",
+    "test": "npm run -w apps/api test",
+    "prisma:generate": "npm run -w apps/api prisma:generate",
+    "prisma:migrate": "npm run -w apps/api prisma:migrate",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down -v"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
