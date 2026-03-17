@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AutoApply — Application Failed</title>
+  </head>
+  <body style="margin:0;padding:0;background:#0f172a;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;padding:24px 0;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#111c33;border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;">
+            <tr>
+              <td style="padding:22px 22px 10px 22px;">
+                <div style="color:#c7d2fe;font-size:12px;letter-spacing:.12em;text-transform:uppercase;">AutoApply</div>
+                <div style="color:#ffffff;font-size:22px;font-weight:700;margin-top:8px;">⚠️ Application failed</div>
+                <div style="color:#cbd5e1;font-size:14px;margin-top:6px;line-height:1.5;">
+                  Your agent attempted to apply but could not confirm a successful submission.
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 22px 18px 22px;">
+                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                  <tr>
+                    <td style="padding:10px 0;color:#94a3b8;font-size:12px;">Company</td>
+                    <td style="padding:10px 0;color:#ffffff;font-size:12px;font-weight:600;text-align:right;">{{company}}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:10px 0;color:#94a3b8;font-size:12px;border-top:1px solid rgba(255,255,255,.08);">Role</td>
+                    <td style="padding:10px 0;color:#ffffff;font-size:12px;font-weight:600;text-align:right;border-top:1px solid rgba(255,255,255,.08);">{{jobTitle}}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:10px 0;color:#94a3b8;font-size:12px;border-top:1px solid rgba(255,255,255,.08);">Portal</td>
+                    <td style="padding:10px 0;color:#ffffff;font-size:12px;font-weight:600;text-align:right;border-top:1px solid rgba(255,255,255,.08);">{{portalName}}</td>
+                  </tr>
+                </table>
+                <div style="margin-top:16px;background:rgba(248,113,113,.10);border:1px solid rgba(248,113,113,.22);border-radius:12px;padding:14px;">
+                  <div style="color:#fecaca;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">Error</div>
+                  <div style="margin-top:8px;color:#e2e8f0;font-size:13px;line-height:1.55;white-space:pre-wrap;">{{error}}</div>
+                </div>
+                <div style="margin-top:18px;text-align:center;">
+                  <a href="{{jobUrl}}" style="display:inline-block;background:#6366f1;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 18px;border-radius:12px;">Open job & apply manually</a>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 22px;background:#0b1224;border-top:1px solid rgba(255,255,255,.08);">
+                <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+                  <a href="{{dashboardUrl}}" style="color:#c7d2fe;text-decoration:none;font-size:12px;">View Dashboard</a>
+                  <span style="color:#334155;">•</span>
+                  <a href="{{pauseUrl}}" style="color:#c7d2fe;text-decoration:none;font-size:12px;">Pause Agent</a>
+                </div>
+                <div style="margin-top:10px;color:#64748b;font-size:11px;text-align:center;line-height:1.5;">
+                  AutoApply continues to the next job automatically.
+                </div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+
