@@ -3,63 +3,60 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AutoApply — Application Failed</title>
+    <title>AutoApply - Application Failed</title>
+    <style>
+      body { margin: 0; padding: 0; background: #020617; font-family: Arial, sans-serif; color: #e2e8f0; }
+      .wrapper { width: 100%; padding: 24px 12px; }
+      .card { max-width: 600px; margin: 0 auto; background: #0f172a; border: 1px solid #1e293b; border-radius: 20px; overflow: hidden; }
+      .header { padding: 28px 32px 20px; background: linear-gradient(135deg, #7f1d1d, #ef4444); }
+      .header h1 { margin: 0; font-size: 28px; color: #ffffff; }
+      .header p { margin: 10px 0 0; color: #fee2e2; font-size: 14px; }
+      .content { padding: 28px 32px; }
+      .pill { display: inline-block; margin-bottom: 18px; padding: 8px 12px; border-radius: 999px; background: rgba(239, 68, 68, 0.15); color: #fecaca; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+      table { width: 100%; border-collapse: collapse; margin: 20px 0; background: #111c34; border-radius: 14px; overflow: hidden; }
+      td { padding: 14px 16px; border-bottom: 1px solid #1e293b; font-size: 14px; }
+      td:first-child { width: 38%; color: #94a3b8; }
+      .error-box { margin-top: 20px; padding: 16px; border-radius: 14px; background: rgba(127, 29, 29, 0.25); color: #fecaca; font-size: 14px; }
+      .actions { margin-top: 28px; }
+      .button { display: inline-block; margin-right: 12px; margin-bottom: 12px; padding: 12px 18px; border-radius: 12px; background: #6366f1; color: #ffffff !important; text-decoration: none; font-weight: 700; }
+      .button.secondary { background: #1e293b; }
+      .footer { padding: 20px 32px 28px; color: #94a3b8; font-size: 12px; line-height: 1.6; }
+      .footer a { color: #c7d2fe; }
+      @media (max-width: 640px) {
+        .header, .content, .footer { padding-left: 20px; padding-right: 20px; }
+        td { display: block; width: 100%; }
+      }
+    </style>
   </head>
-  <body style="margin:0;padding:0;background:#0f172a;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;padding:24px 0;">
-      <tr>
-        <td align="center">
-          <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#111c33;border:1px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;">
-            <tr>
-              <td style="padding:22px 22px 10px 22px;">
-                <div style="color:#c7d2fe;font-size:12px;letter-spacing:.12em;text-transform:uppercase;">AutoApply</div>
-                <div style="color:#ffffff;font-size:22px;font-weight:700;margin-top:8px;">⚠️ Application failed</div>
-                <div style="color:#cbd5e1;font-size:14px;margin-top:6px;line-height:1.5;">
-                  Your agent attempted to apply but could not confirm a successful submission.
-                </div>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:0 22px 18px 22px;">
-                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-                  <tr>
-                    <td style="padding:10px 0;color:#94a3b8;font-size:12px;">Company</td>
-                    <td style="padding:10px 0;color:#ffffff;font-size:12px;font-weight:600;text-align:right;">{{company}}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:10px 0;color:#94a3b8;font-size:12px;border-top:1px solid rgba(255,255,255,.08);">Role</td>
-                    <td style="padding:10px 0;color:#ffffff;font-size:12px;font-weight:600;text-align:right;border-top:1px solid rgba(255,255,255,.08);">{{jobTitle}}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:10px 0;color:#94a3b8;font-size:12px;border-top:1px solid rgba(255,255,255,.08);">Portal</td>
-                    <td style="padding:10px 0;color:#ffffff;font-size:12px;font-weight:600;text-align:right;border-top:1px solid rgba(255,255,255,.08);">{{portalName}}</td>
-                  </tr>
-                </table>
-                <div style="margin-top:16px;background:rgba(248,113,113,.10);border:1px solid rgba(248,113,113,.22);border-radius:12px;padding:14px;">
-                  <div style="color:#fecaca;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">Error</div>
-                  <div style="margin-top:8px;color:#e2e8f0;font-size:13px;line-height:1.55;white-space:pre-wrap;">{{error}}</div>
-                </div>
-                <div style="margin-top:18px;text-align:center;">
-                  <a href="{{jobUrl}}" style="display:inline-block;background:#6366f1;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 18px;border-radius:12px;">Open job & apply manually</a>
-                </div>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:16px 22px;background:#0b1224;border-top:1px solid rgba(255,255,255,.08);">
-                <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
-                  <a href="{{dashboardUrl}}" style="color:#c7d2fe;text-decoration:none;font-size:12px;">View Dashboard</a>
-                  <span style="color:#334155;">•</span>
-                  <a href="{{pauseUrl}}" style="color:#c7d2fe;text-decoration:none;font-size:12px;">Pause Agent</a>
-                </div>
-                <div style="margin-top:10px;color:#64748b;font-size:11px;text-align:center;line-height:1.5;">
-                  AutoApply continues to the next job automatically.
-                </div>
-              </td>
-            </tr>
+  <body>
+    <div class="wrapper">
+      <div class="card">
+        <div class="header">
+          <h1>Application failed</h1>
+          <p>AutoApply tried to submit this job but the run did not complete successfully.</p>
+        </div>
+        <div class="content">
+          <div class="pill">Action needed</div>
+          <p>The job has been kept in your dashboard with the failure details so you can retry or handle it manually.</p>
+          <table>
+            <tr><td>Company</td><td>{{company}}</td></tr>
+            <tr><td>Job title</td><td>{{jobTitle}}</td></tr>
+            <tr><td>Portal</td><td>{{portalName}}</td></tr>
+            <tr><td>Job link</td><td><a href="{{jobUrl}}" style="color:#a5b4fc;">Open posting</a></td></tr>
           </table>
-        </td>
-      </tr>
-    </table>
+          <div class="error-box">{{error}}</div>
+          <div class="actions">
+            <a class="button" href="{{jobUrl}}">Open job</a>
+            <a class="button secondary" href="{{dashboardUrl}}">View dashboard</a>
+          </div>
+        </div>
+        <div class="footer">
+          You can pause the agent at any time while you review this result.
+          <br />
+          <a href="{{pauseUrl}}">Pause Agent</a> |
+          <a href="{{dashboardUrl}}">View Dashboard</a>
+        </div>
+      </div>
+    </div>
   </body>
 </html>
-

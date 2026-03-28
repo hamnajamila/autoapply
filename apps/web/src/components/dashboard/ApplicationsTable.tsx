@@ -14,7 +14,7 @@ export function ApplicationsTable({
   onView: (id: string) => void;
 }) {
   return (
-    <div className="rounded-md border border-white/10 bg-white/5 overflow-hidden">
+    <div className="overflow-hidden rounded-md border border-white/10 bg-white/5">
       <Table>
         <TableHeader>
           <TableRow className="border-white/10">
@@ -24,26 +24,26 @@ export function ApplicationsTable({
             <TableHead className="text-white/70">Score</TableHead>
             <TableHead className="text-white/70">Status</TableHead>
             <TableHead className="text-white/70">Date</TableHead>
-            <TableHead className="text-white/70 text-right">Actions</TableHead>
+            <TableHead className="text-right text-white/70">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((r) => (
-            <TableRow key={r.id} className="border-white/10">
-              <TableCell className="font-medium">{r.job?.company}</TableCell>
-              <TableCell>{r.job?.title}</TableCell>
-              <TableCell className="text-white/80">{r.job?.portalName}</TableCell>
+          {rows.map((row) => (
+            <TableRow key={row.id} className="border-white/10">
+              <TableCell className="font-medium">{row.job?.company}</TableCell>
+              <TableCell>{row.job?.title}</TableCell>
+              <TableCell className="text-white/80">{row.job?.portalName}</TableCell>
               <TableCell>
-                <ScoreMeter score={r.matchScore ?? 0} />
+                <ScoreMeter score={row.matchScore ?? 0} />
               </TableCell>
               <TableCell>
-                <StatusBadge status={r.status} />
+                <StatusBadge status={row.status} />
               </TableCell>
               <TableCell className="text-white/70">
-                {r.createdAt ? new Date(r.createdAt).toLocaleDateString() : "—"}
+                {row.createdAt ? new Date(row.createdAt).toLocaleDateString() : "Not available"}
               </TableCell>
               <TableCell className="text-right">
-                <Button size="sm" variant="secondary" onClick={() => onView(r.id)}>
+                <Button size="sm" variant="secondary" onClick={() => onView(row.id)}>
                   <Eye className="h-4 w-4" />
                 </Button>
               </TableCell>
@@ -61,4 +61,3 @@ export function ApplicationsTable({
     </div>
   );
 }
-

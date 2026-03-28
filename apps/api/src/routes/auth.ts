@@ -65,7 +65,10 @@ router.post("/login", validate({ body: LoginBody }), async (req, res, next) => {
 router.get("/linkedin", async (_req, res, next) => {
   try {
     if (!env.LINKEDIN_CLIENT_ID || !env.LINKEDIN_REDIRECT_URI) {
-      return res.status(500).json({ error: "LinkedIn OAuth not configured" });
+      return res.status(503).json({
+        error: "LinkedIn OAuth not configured",
+        instructions: "Set LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET, and LINKEDIN_REDIRECT_URI in your .env file. See .env.example for details."
+      });
     }
     const state = Math.random().toString(36).slice(2);
     const params = new URLSearchParams({
@@ -73,7 +76,7 @@ router.get("/linkedin", async (_req, res, next) => {
       client_id: env.LINKEDIN_CLIENT_ID,
       redirect_uri: env.LINKEDIN_REDIRECT_URI,
       state,
-      scope: "r_liteprofile r_emailaddress"
+      scope: "r_liteprofile%20r_emailaddress"
     });
     const url = `https://www.linkedin.com/oauth/v2/authorization?${params.toString()}`;
     return res.redirect(url);

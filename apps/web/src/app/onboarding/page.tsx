@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUploadResume, useProfile, useUpdateProfile } from "@/hooks/useProfile";
 import { usePortals, useConnectPortal } from "@/hooks/usePortals";
@@ -16,11 +16,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 
 function StepIndicator({ step }: { step: number }) {
-  const pct = step === 1 ? 33 : step === 2 ? 66 : 100;
+  const percentage = step === 1 ? 33 : step === 2 ? 66 : 100;
+
   return (
     <div className="space-y-2">
       <div className="text-sm text-white/70">Step {step} of 3</div>
-      <Progress value={pct} className="bg-white/10" />
+      <Progress value={percentage} className="bg-white/10" />
     </div>
   );
 }
@@ -36,18 +37,18 @@ export default function OnboardingPage() {
 
   const profile = profileQ.data?.profileJson ?? null;
 
-  const [threshold, setThreshold] = useState<number>(70);
-  const [salaryMin, setSalaryMin] = useState<string>("");
-  const [salaryMax, setSalaryMax] = useState<string>("");
-  const [currency, setCurrency] = useState<string>("USD");
+  const [threshold, setThreshold] = useState(70);
+  const [salaryMin, setSalaryMin] = useState("");
+  const [salaryMax, setSalaryMax] = useState("");
+  const [currency, setCurrency] = useState("USD");
   const [jobTypes, setJobTypes] = useState<Record<string, boolean>>({
     "Full-time": true,
     "Part-time": false,
     Contract: false,
     Freelance: false
   });
-  const [blockedCompanies, setBlockedCompanies] = useState<string>("");
-  const [schedule, setSchedule] = useState<string>("0 */2 * * *");
+  const [blockedCompanies, setBlockedCompanies] = useState("");
+  const [schedule, setSchedule] = useState("0 */2 * * *");
 
   const scheduleOptions = useMemo(
     () => [
@@ -60,8 +61,23 @@ export default function OnboardingPage() {
     []
   );
 
+  useEffect(() => {
+    const urlToken = new URLSearchParams(window.location.search).get("token");
+    const token = urlToken || localStorage.getItem("autoapply_token");
+
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
+    localStorage.setItem("autoapply_token", token);
+    if (urlToken) {
+      window.history.replaceState({}, "", "/onboarding");
+    }
+  }, [router]);
+
   return (
-    <div className="min-h-screen px-4 py-10 max-w-5xl mx-auto space-y-6">
+    <div className="mx-auto min-h-screen max-w-5xl space-y-6 px-4 py-10">
       <div className="flex items-center justify-between">
         <div>
           <div className="text-2xl font-bold">Onboarding</div>
@@ -73,40 +89,40 @@ export default function OnboardingPage() {
       </div>
 
       {step === 1 ? (
-        <Card className="bg-white/5 border-white/10">
+        <Card className="border-white/10 bg-white/5">
           <CardHeader>
-            <CardTitle>Step 1 — Upload your resume</CardTitle>
+            <CardTitle>Step 1 - Upload your resume</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="text-sm text-white/70">
-              Upload a PDF or DOCX (max 10MB). We’ll parse it and generate an editable profile.
-            </div>
+            <div className="text-sm text-white/70">Upload a PDF or DOCX (max 10MB). We&apos;ll parse it and generate an editable profile.</div>
             <Input
               type="file"
               accept=".pdf,.docx"
-              className="bg-white/5 border-white/10"
+              className="border-white/10 bg-white/5"
               onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) upload.mutate(f);
+                const file = e.target.files?.[0];
+                if (file) {
+                  upload.mutate(file);
+                }
               }}
             />
             {upload.isPending ? <div className="text-sm text-white/70">Parsing your resume with AI...</div> : null}
             {profile ? (
-              <div className="grid md:grid-cols-2 gap-3">
+              <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-1">
                   <div className="text-xs text-white/60">Name</div>
-                  <Input className="bg-white/5 border-white/10" defaultValue={profile.name ?? ""} readOnly />
+                  <Input className="border-white/10 bg-white/5" defaultValue={profile.name ?? ""} readOnly />
                 </div>
                 <div className="space-y-1">
                   <div className="text-xs text-white/60">Email</div>
-                  <Input className="bg-white/5 border-white/10" defaultValue={profile.email ?? ""} readOnly />
+                  <Input className="border-white/10 bg-white/5" defaultValue={profile.email ?? ""} readOnly />
                 </div>
                 <div className="space-y-1 md:col-span-2">
                   <div className="text-xs text-white/60">Skills</div>
                   <div className="flex flex-wrap gap-2">
-                    {(profile.skills ?? []).slice(0, 24).map((s: string) => (
-                      <Badge key={s} variant="outline" className="border-white/10 text-white/80">
-                        {s}
+                    {(profile.skills ?? []).slice(0, 24).map((skill: string) => (
+                      <Badge key={skill} variant="outline" className="border-white/10 text-white/80">
+                        {skill}
                       </Badge>
                     ))}
                   </div>
@@ -114,12 +130,8 @@ export default function OnboardingPage() {
               </div>
             ) : null}
             <div className="flex justify-end">
-              <Button
-                className="bg-[#6366f1] hover:bg-[#5558e6]"
-                disabled={!profile}
-                onClick={() => setStep(2)}
-              >
-                Looks good, next →
+              <Button className="bg-[#6366f1] hover:bg-[#5558e6]" disabled={!profile} onClick={() => setStep(2)}>
+                Looks good, next
               </Button>
             </div>
           </CardContent>
@@ -127,28 +139,28 @@ export default function OnboardingPage() {
       ) : null}
 
       {step === 2 ? (
-        <Card className="bg-white/5 border-white/10">
+        <Card className="border-white/10 bg-white/5">
           <CardHeader>
-            <CardTitle>Step 2 — Connect job portals</CardTitle>
+            <CardTitle>Step 2 - Connect job portals</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {(portalsQ.data?.portals ?? []).map((p: any) => (
-                <Card key={p.name} className="bg-white/5 border-white/10">
-                  <CardContent className="p-4 space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {(portalsQ.data?.portals ?? []).map((portal: any) => (
+                <Card key={portal.name} className="border-white/10 bg-white/5">
+                  <CardContent className="space-y-3 p-4">
                     <div className="flex items-center justify-between">
-                      <div className="font-semibold">{p.displayName}</div>
-                      <Badge className={p.connected ? "bg-emerald-600/20 text-emerald-200" : "bg-white/10 text-white/70"}>
-                        {p.connected ? "Connected ✓" : "Not connected"}
+                      <div className="font-semibold">{portal.displayName}</div>
+                      <Badge className={portal.connected ? "bg-emerald-600/20 text-emerald-200" : "bg-white/10 text-white/70"}>
+                        {portal.connected ? "Connected" : "Not connected"}
                       </Badge>
                     </div>
-                    <div className="text-xs text-white/60">{p.description}</div>
-                    {p.name === "linkedin" ? (
+                    <div className="text-xs text-white/60">{portal.description}</div>
+                    {portal.name === "linkedin" ? (
                       <Button
                         className="w-full bg-[#6366f1] hover:bg-[#5558e6]"
-                        onClick={() =>
-                          (window.location.href = `${process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001"}/api/auth/linkedin`)
-                        }
+                        onClick={() => {
+                          window.location.href = `${process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001"}/api/auth/linkedin`;
+                        }}
                       >
                         Connect with LinkedIn
                       </Button>
@@ -156,17 +168,17 @@ export default function OnboardingPage() {
                       <Dialog>
                         <DialogTrigger asChild>
                           <Button className="w-full" variant="secondary">
-                            {p.connected ? "Reconnect" : "Connect"}
+                            {portal.connected ? "Reconnect" : "Connect"}
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="bg-[#0b1224] border-white/10 text-white">
+                        <DialogContent className="border-white/10 bg-[#0b1224] text-white">
                           <DialogHeader>
-                            <DialogTitle>Connect {p.displayName}</DialogTitle>
+                            <DialogTitle>Connect {portal.displayName}</DialogTitle>
                           </DialogHeader>
                           <PortalConnectForm
-                            portalName={p.name}
-                            onSave={async (creds) => {
-                              await connect.mutateAsync({ portalName: p.name, credentials: creds });
+                            portalName={portal.name}
+                            onSave={async (credentials) => {
+                              await connect.mutateAsync({ portalName: portal.name, credentials });
                             }}
                           />
                         </DialogContent>
@@ -178,10 +190,10 @@ export default function OnboardingPage() {
             </div>
             <div className="flex justify-between">
               <Button variant="secondary" onClick={() => setStep(1)}>
-                ← Back
+                {"<-"} Back
               </Button>
               <Button className="bg-[#6366f1] hover:bg-[#5558e6]" onClick={() => setStep(3)}>
-                Continue →
+                Continue
               </Button>
             </div>
           </CardContent>
@@ -189,9 +201,9 @@ export default function OnboardingPage() {
       ) : null}
 
       {step === 3 ? (
-        <Card className="bg-white/5 border-white/10">
+        <Card className="border-white/10 bg-white/5">
           <CardHeader>
-            <CardTitle>Step 3 — Preferences</CardTitle>
+            <CardTitle>Step 3 - Preferences</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="space-y-2">
@@ -199,31 +211,31 @@ export default function OnboardingPage() {
               <div className="text-sm text-white/70">Auto-apply only when your match score meets or exceeds this value.</div>
               <div className="flex items-center gap-3">
                 <div className="w-full">
-                  <Slider value={[threshold]} min={50} max={95} step={1} onValueChange={(v) => setThreshold(v[0] ?? 70)} />
+                  <Slider value={[threshold]} min={50} max={95} step={1} onValueChange={(value) => setThreshold(value[0] ?? 70)} />
                 </div>
                 <div className="w-14 text-right font-semibold">{threshold}</div>
               </div>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-3">
+            <div className="grid gap-3 md:grid-cols-3">
               <div className="space-y-1">
                 <div className="text-xs text-white/60">Salary min</div>
-                <Input className="bg-white/5 border-white/10" value={salaryMin} onChange={(e) => setSalaryMin(e.target.value)} />
+                <Input className="border-white/10 bg-white/5" value={salaryMin} onChange={(e) => setSalaryMin(e.target.value)} />
               </div>
               <div className="space-y-1">
                 <div className="text-xs text-white/60">Salary max</div>
-                <Input className="bg-white/5 border-white/10" value={salaryMax} onChange={(e) => setSalaryMax(e.target.value)} />
+                <Input className="border-white/10 bg-white/5" value={salaryMax} onChange={(e) => setSalaryMax(e.target.value)} />
               </div>
               <div className="space-y-1">
                 <div className="text-xs text-white/60">Currency</div>
                 <Select value={currency} onValueChange={setCurrency}>
-                  <SelectTrigger className="bg-white/5 border-white/10">
+                  <SelectTrigger className="border-white/10 bg-white/5">
                     <SelectValue placeholder="Currency" />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#0b1224] border-white/10 text-white">
-                    {["USD", "EUR", "GBP", "CAD", "AUD", "INR"].map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
+                  <SelectContent className="border-white/10 bg-[#0b1224] text-white">
+                    {["USD", "EUR", "GBP", "CAD", "AUD", "INR"].map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -233,11 +245,14 @@ export default function OnboardingPage() {
 
             <div className="space-y-2">
               <div className="font-semibold">Job types</div>
-              <div className="grid sm:grid-cols-2 gap-2">
-                {Object.keys(jobTypes).map((k) => (
-                  <label key={k} className="flex items-center gap-2 text-sm text-white/80">
-                    <Checkbox checked={Boolean(jobTypes[k])} onCheckedChange={(v) => setJobTypes((s) => ({ ...s, [k]: Boolean(v) }))} />
-                    {k}
+              <div className="grid gap-2 sm:grid-cols-2">
+                {Object.keys(jobTypes).map((jobType) => (
+                  <label key={jobType} className="flex items-center gap-2 text-sm text-white/80">
+                    <Checkbox
+                      checked={Boolean(jobTypes[jobType])}
+                      onCheckedChange={(value) => setJobTypes((current) => ({ ...current, [jobType]: Boolean(value) }))}
+                    />
+                    {jobType}
                   </label>
                 ))}
               </div>
@@ -246,19 +261,19 @@ export default function OnboardingPage() {
             <div className="space-y-1">
               <div className="font-semibold">Blocked companies</div>
               <div className="text-sm text-white/70">One per line.</div>
-              <Textarea className="bg-white/5 border-white/10" value={blockedCompanies} onChange={(e) => setBlockedCompanies(e.target.value)} />
+              <Textarea className="border-white/10 bg-white/5" value={blockedCompanies} onChange={(e) => setBlockedCompanies(e.target.value)} />
             </div>
 
             <div className="space-y-1">
               <div className="font-semibold">Agent schedule</div>
               <Select value={schedule} onValueChange={setSchedule}>
-                <SelectTrigger className="bg-white/5 border-white/10">
+                <SelectTrigger className="border-white/10 bg-white/5">
                   <SelectValue placeholder="Schedule" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#0b1224] border-white/10 text-white">
-                  {scheduleOptions.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
+                <SelectContent className="border-white/10 bg-[#0b1224] text-white">
+                  {scheduleOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -267,31 +282,32 @@ export default function OnboardingPage() {
 
             <div className="flex justify-between">
               <Button variant="secondary" onClick={() => setStep(2)}>
-                ← Back
+                {"<-"} Back
               </Button>
               <Button
                 className="bg-[#6366f1] hover:bg-[#5558e6]"
                 disabled={update.isPending}
                 onClick={async () => {
-                  const prefs = {
+                  const preferences = {
                     salaryMin: salaryMin ? Number(salaryMin) : null,
                     salaryMax: salaryMax ? Number(salaryMax) : null,
                     salaryCurrency: currency,
                     jobTypes: Object.entries(jobTypes)
-                      .filter(([, v]) => v)
-                      .map(([k]) => k),
+                      .filter(([, enabled]) => enabled)
+                      .map(([name]) => name),
                     blockedCompanies: blockedCompanies
                       .split(/\r?\n/)
-                      .map((s) => s.trim())
+                      .map((value) => value.trim())
                       .filter(Boolean),
                     remoteOnly: true,
                     scheduleCron: schedule
                   };
-                  await update.mutateAsync({ preferences: prefs, matchThreshold: threshold, agentSchedule: schedule });
+
+                  await update.mutateAsync({ preferences, matchThreshold: threshold, agentSchedule: schedule });
                   router.push("/dashboard");
                 }}
               >
-                Start Agent & Go to Dashboard →
+                Start Agent and Go to Dashboard
               </Button>
             </div>
           </CardContent>
@@ -312,11 +328,18 @@ function PortalConnectForm({
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+
   return (
     <div className="space-y-3">
       <div className="text-sm text-white/70">Enter credentials for {portalName}. These are encrypted at rest.</div>
-      <Input className="bg-white/5 border-white/10" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-      <Input className="bg-white/5 border-white/10" placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+      <Input className="border-white/10 bg-white/5" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      <Input
+        className="border-white/10 bg-white/5"
+        placeholder="Password"
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
       {result ? <div className="text-xs text-white/70">{result}</div> : null}
       <Button
         className="w-full"
@@ -326,17 +349,16 @@ function PortalConnectForm({
           setResult(null);
           try {
             await onSave({ email, password });
-            setResult("Saved & tested.");
-          } catch (e: any) {
-            setResult(e?.message ?? "Failed to connect.");
+            setResult("Saved and tested.");
+          } catch (err: any) {
+            setResult(err?.message ?? "Failed to connect.");
           } finally {
             setLoading(false);
           }
         }}
       >
-        {loading ? "Saving..." : "Save & Test"}
+        {loading ? "Saving..." : "Save and Test"}
       </Button>
     </div>
   );
 }
-

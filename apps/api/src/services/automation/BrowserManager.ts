@@ -1,4 +1,6 @@
 import { chromium, type Browser, type BrowserContext } from "playwright";
+import { execSync } from "node:child_process";
+import { logger } from "../../config/logger";
 
 const USER_AGENTS = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
@@ -15,8 +17,37 @@ function randomUserAgent() {
 export class BrowserManager {
   private static browser: Browser | null = null;
   private static launching: Promise<Browser> | null = null;
+  private static verified = false;
+
+  static async verifyBrowsersInstalled(): Promise<void> {
+    if (this.verified) return;
+    try {
+      // Try to launch a test browser to verify installation
+      const testBrowser = await chromium.launch({ headless: true });
+      await testBrowser.close();
+      this.verified = true;
+      logger.info("Playwright browsers verified");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("Executable doesn't exist")) {
+        logger.error("Playwright browsers not installed. Attempting auto-install...");
+        try {
+          execSync("npx playwright install chromium", { stdio: "inherit" });
+          this.verified = true;
+          logger.info("Playwright browsers auto-installed successfully");
+        } catch {
+          throw new Error(
+            "Playwright browsers not installed. Please run: npx playwright install chromium"
+          );
+        }
+      } else {
+        throw err;
+      }
+    }
+  }
 
   static async getBrowser(): Promise<Browser> {
+    await this.verifyBrowsersInstalled();
     if (this.browser) return this.browser;
     if (!this.launching) {
       this.launching = chromium.launch({

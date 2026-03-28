@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -25,6 +26,7 @@ model User {
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   portalCredentials  PortalCredential[]
+  customPortals      CustomPortal[]
   applications       Application[]
   emailLogs          EmailLog[]
 }
@@ -79,7 +81,7 @@ model Application {
   screenshotBefore String?   @db.Text
   screenshotAfter  String?   @db.Text
   skipReason       String?
-  errorMessage     String?
+  errorMessage     String?   @db.Text
   appliedAt        DateTime?
   emailSentAt      DateTime?
   createdAt        DateTime  @default(now())
@@ -116,5 +118,18 @@ model ErrorLog {
   stack     String?  @db.Text
   metadata  Json?
   createdAt DateTime @default(now())
+}
+
+model CustomPortal {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  url         String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, name])
 }
 

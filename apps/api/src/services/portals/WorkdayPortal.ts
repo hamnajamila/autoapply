@@ -5,8 +5,8 @@ import { fillFormFields } from "../llm/formFiller";
 import { FormSubmitter } from "../automation/FormSubmitter";
 
 async function hasText(page: any, re: RegExp): Promise<boolean> {
-  const txt = await page.content().catch(() => "");
-  return re.test(txt);
+  const text = await page.content().catch(() => "");
+  return re.test(text);
 }
 
 export class WorkdayPortal extends BasePortal {
@@ -29,6 +29,7 @@ export class WorkdayPortal extends BasePortal {
 
   async applyToJob(job: JobListing, profile: UserProfile, resumePath: string): Promise<ApplicationResult> {
     await this.initBrowser();
+
     try {
       const page = this.page!;
       await this.safeGoto(job.applyUrl);
@@ -50,28 +51,29 @@ export class WorkdayPortal extends BasePortal {
         };
       }
 
-      // Workday flows are multi-step; try a few "Next" pages before final submit.
       const screenshotBefore = await this.takeScreenshot();
-      for (let step = 0; step < 6; step++) {
+
+      for (let step = 0; step < 6; step += 1) {
         const fields = await FormDetector.getFields(page);
         const filled = await fillFormFields(fields, profile, job.title);
-        // Do not submit yet—prefer next if present.
-        for (const f of filled) {
-          // filled later by FormSubmitter on final step; here we do light prefill by calling submit with precheck-only
-          void f;
+
+        // Prefer the next step when it exists instead of treating every page as a final submit.
+        for (const field of filled) {
+          void field;
         }
-        const nextBtn = page
+
+        const nextButton = page
           .locator('button:has-text("Next"), button:has-text("Continue"), button:has-text("Review")')
           .first();
-        const hasNext = await nextBtn.isVisible().catch(() => false);
+        const hasNext = await nextButton.isVisible().catch(() => false);
+
         if (hasNext) {
-          // Use submitter-like fill then click next
           await FormSubmitter.submit(page, filled, resumePath);
-          await nextBtn.click().catch(() => undefined);
+          await nextButton.click().catch(() => undefined);
           await this.randomDelay(1500, 3500);
           continue;
         }
-        // No "Next" detected; attempt final submit.
+
         const submit = await FormSubmitter.submit(page, filled, resumePath);
         return {
           success: submit.success,
@@ -91,12 +93,18 @@ export class WorkdayPortal extends BasePortal {
         screenshotAfter
       };
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "apply_failed";
+      const message = err instanceof Error ? err.message : "apply_failed";
       const before = this.page ? await this.takeScreenshot().catch(() => "") : "";
-      return { success: false, status: msg === "captcha_required" ? "SKIPPED_CAPTCHA" : "FAILED", method: "error", errorMessage: msg, screenshotBefore: before };
+
+      return {
+        success: false,
+        status: message === "captcha_required" ? "SKIPPED_CAPTCHA" : "FAILED",
+        method: "error",
+        errorMessage: message,
+        screenshotBefore: before
+      };
     } finally {
       await this.closeBrowser();
     }
   }
 }
-

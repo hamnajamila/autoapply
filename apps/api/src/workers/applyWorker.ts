@@ -1,5 +1,6 @@
 import path from "node:path";
 import { Worker } from "bullmq";
+import type { UserProfile } from "@autoapply/shared";
 import { decrypt } from "@autoapply/shared";
 import { prisma } from "../config/database";
 import { redis } from "../config/redis";
@@ -102,7 +103,7 @@ export const applyWorker = new Worker<ApplyJobData>(
           : path.join(process.cwd(), app.user.resumeFileUrl)
         : path.join(process.cwd(), env.UPLOADS_DIR, `${app.userId}.resume`);
 
-      const profile = (app.user.profileJson ?? {}) as any;
+      const profile = (app.user.profileJson ?? {}) as UserProfile;
       const result = await portal.applyToJob(
         {
           portalName: app.job.portalName,
@@ -192,6 +193,6 @@ export const applyWorker = new Worker<ApplyJobData>(
       }).catch(() => undefined);
     }
   },
-  { connection: redis as any, concurrency: 2 }
+  { connection: redis, concurrency: 2 }
 );
 

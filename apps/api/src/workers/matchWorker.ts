@@ -1,4 +1,5 @@
 import { Worker } from "bullmq";
+import type { UserProfile } from "@autoapply/shared";
 import { prisma } from "../config/database";
 import { redis } from "../config/redis";
 import { logger } from "../config/logger";
@@ -40,7 +41,7 @@ export const matchWorker = new Worker<MatchJobData>(
       });
       if (existing) return;
 
-      const profile = (user.profileJson ?? {}) as any;
+      const profile = (user.profileJson ?? {}) as UserProfile;
       const result = await scoreJobMatch(profile, jobRec.description, jobRec.title);
 
       const app = await prisma.application.create({
@@ -65,6 +66,6 @@ export const matchWorker = new Worker<MatchJobData>(
       await logError("matchWorker", err, { userId, jobId });
     }
   },
-  { connection: redis as any, concurrency: 10 }
+  { connection: redis, concurrency: 10 }
 );
 

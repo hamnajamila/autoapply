@@ -18,8 +18,8 @@ export default function DashboardOverview() {
   const perDay = statsQ.data?.applicationsByDay ?? [];
 
   const chartData = useMemo(
-    () => perDay.map((d: any) => ({ date: String(d.date).slice(5), count: Number(d.count ?? 0) })),
-    [perDay]
+    () => (statsQ.data?.applicationsByDay ?? []).map((d: any) => ({ date: String(d.date).slice(5), count: Number(d.count ?? 0) })),
+    [statsQ.data?.applicationsByDay]
   );
 
   return (

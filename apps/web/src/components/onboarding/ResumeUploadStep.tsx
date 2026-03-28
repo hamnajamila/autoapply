@@ -16,28 +16,29 @@ export function ResumeUploadStep({
   loading: boolean;
 }) {
   return (
-    <Card className="bg-white/5 border-white/10">
+    <Card className="border-white/10 bg-white/5">
       <CardHeader>
-        <CardTitle>Step 1 — Upload your resume</CardTitle>
+        <CardTitle>Step 1 - Upload your resume</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <Input
           type="file"
           accept=".pdf,.docx"
-          className="bg-white/5 border-white/10"
+          className="border-white/10 bg-white/5"
           onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) onFile(f);
+            const file = e.target.files?.[0];
+            if (file) {
+              onFile(file);
+            }
           }}
         />
         {loading ? <div className="text-sm text-white/70">Parsing your resume with AI...</div> : null}
         <div className="flex justify-end">
           <Button className="bg-[#6366f1] hover:bg-[#5558e6]" disabled={!canContinue} onClick={onContinue}>
-            Looks good, next →
+            Looks good, next
           </Button>
         </div>
       </CardContent>
     </Card>
   );
 }
-

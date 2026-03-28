@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { useProfile, useUpdateProfile } from "@/hooks/useProfile";
 import { useAgentStatus, usePauseAgent, useStartAgent } from "@/hooks/useAgent";
+import { toast } from "@/hooks/use-toast";
 
 export default function SettingsPage() {
   const profileQ = useProfile();
@@ -110,20 +111,29 @@ export default function SettingsPage() {
           className="bg-[#6366f1] hover:bg-[#5558e6]"
           disabled={update.isPending}
           onClick={async () => {
-            const prefs = {
-              ...(profileQ.data?.preferences ?? {}),
-              blockedCompanies: blocked
-                .split(/\r?\n/)
-                .map((s) => s.trim())
-                .filter(Boolean),
-              maxApplicationsPerRun: Number(maxPerRun) || 20
-            };
-            await update.mutateAsync({
-              preferences: prefs,
-              matchThreshold: threshold,
-              agentSchedule: schedule,
-              emailNotifications
-            });
+            try {
+              const prefs = {
+                ...(profileQ.data?.preferences ?? {}),
+                blockedCompanies: blocked
+                  .split(/\r?\n/)
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+                maxApplicationsPerRun: Number(maxPerRun) || 20
+              };
+              await update.mutateAsync({
+                preferences: prefs,
+                matchThreshold: threshold,
+                agentSchedule: schedule,
+                emailNotifications
+              });
+              toast({ title: "Saved", description: "Settings updated." });
+            } catch (err: any) {
+              toast({
+                title: "Save failed",
+                description: err?.response?.data?.error ?? err?.message ?? "Could not save settings",
+                variant: "destructive"
+              });
+            }
           }}
         >
           {update.isPending ? "Saving..." : "Save settings"}

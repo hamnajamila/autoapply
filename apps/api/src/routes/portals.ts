@@ -28,18 +28,39 @@ router.get("/", authenticate, async (req, res, next) => {
   try {
     const userId = req.auth!.userId;
     const creds = await prisma.portalCredential.findMany({ where: { userId } });
+    const customPortals = await prisma.customPortal.findMany({ where: { userId, isActive: true } });
     const byName = new Map(creds.map((c) => [c.portalName, c]));
-    const portals = PORTALS_META.map((p) => {
+    
+    // Standard portals
+    const standardPortals = PORTALS_META.map((p) => {
       const c = byName.get(p.name);
       return {
         ...p,
         connected: Boolean(c),
         isActive: c?.isActive ?? false,
         lastSynced: c?.lastSynced ?? null,
-        lastError: c?.lastError ?? null
+        lastError: c?.lastError ?? null,
+        isCustom: false
       };
     });
-    return res.json({ portals });
+    
+    // Custom portals
+    const customPortalData = customPortals.map((cp) => ({
+      name: cp.name,
+      displayName: cp.name,
+      logoUrl: `https://${new URL(cp.url).hostname}/favicon.ico`,
+      requiresAuth: false,
+      description: `Custom portal: ${cp.url}`,
+      url: cp.url,
+      connected: false,
+      isActive: cp.isActive,
+      lastSynced: null,
+      lastError: null,
+      isCustom: true,
+      id: cp.id
+    }));
+    
+    return res.json({ portals: [...standardPortals, ...customPortalData] });
   } catch (err) {
     return next(err);
   }
@@ -84,7 +105,13 @@ router.post("/:portalName/connect", authenticate, validate({ body: ConnectBody }
       });
     } catch (e) {
       success = false;
-      message = e instanceof Error ? e.message : "connection_failed";
+      const rawMessage = e instanceof Error ? e.message : "connection_failed";
+      // Check for Playwright browser installation error
+      if (rawMessage.includes("Executable doesn't exist") || rawMessage.includes("browserType.launch")) {
+        message = "Playwright browsers not installed. Run: npx playwright install chromium";
+      } else {
+        message = rawMessage;
+      }
       await prisma.portalCredential.update({
         where: { userId_portalName: { userId, portalName } },
         data: { lastError: message, lastSynced: new Date() }
@@ -103,7 +130,71 @@ router.delete("/:portalName", authenticate, async (req, res, next) => {
   try {
     const userId = req.auth!.userId;
     const portalName = String(req.params["portalName"] || "").toLowerCase();
-    await prisma.portalCredential.delete({ where: { userId_portalName: { userId, portalName } } });
+    
+    // Check if it's a custom portal first
+    const customPortal = await prisma.customPortal.findUnique({
+      where: { userId_name: { userId, name: portalName } }
+    });
+    
+    if (customPortal) {
+      await prisma.customPortal.delete({ where: { id: customPortal.id } });
+    } else {
+      await prisma.portalCredential.delete({ where: { userId_portalName: { userId, portalName } } });
+    }
+    
+    return res.json({ success: true });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+// Custom portal endpoints
+const CreateCustomPortalBody = z.object({
+  name: z.string().min(1),
+  url: z.string().url()
+});
+
+router.post("/custom", authenticate, validate({ body: CreateCustomPortalBody }), async (req, res, next) => {
+  try {
+    const userId = req.auth!.userId;
+    const { name, url } = req.body as z.infer<typeof CreateCustomPortalBody>;
+    
+    const customPortal = await prisma.customPortal.create({
+      data: { userId, name: name.toLowerCase(), url, isActive: true }
+    });
+    
+    return res.status(201).json({
+      success: true,
+      portal: {
+        name: customPortal.name,
+        displayName: customPortal.name,
+        logoUrl: `https://${new URL(customPortal.url).hostname}/favicon.ico`,
+        requiresAuth: false,
+        description: `Custom portal: ${customPortal.url}`,
+        url: customPortal.url,
+        connected: false,
+        isActive: true,
+        isCustom: true,
+        id: customPortal.id
+      }
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("Unique constraint")) {
+      return res.status(409).json({ error: "A portal with this name already exists" });
+    }
+    return next(err);
+  }
+});
+
+router.delete("/custom/:id", authenticate, async (req, res, next) => {
+  try {
+    const userId = req.auth!.userId;
+    const id = String(req.params["id"]);
+    
+    await prisma.customPortal.deleteMany({
+      where: { id, userId }
+    });
+    
     return res.json({ success: true });
   } catch (err) {
     return next(err);

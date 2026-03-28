@@ -3,7 +3,6 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/dashboard/Sidebar";
-import { setAuthToken } from "@/lib/api";
 import { Toaster } from "@/components/ui/toaster";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -17,7 +16,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       return;
     }
     localStorage.setItem("autoapply_token", token);
-    setAuthToken(token);
     if (urlToken) {
       const nextUrl = window.location.pathname;
       window.history.replaceState({}, "", nextUrl);

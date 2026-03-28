@@ -13,22 +13,21 @@ export function ConnectPortalsStep({
   children: React.ReactNode;
 }) {
   return (
-    <Card className="bg-white/5 border-white/10">
+    <Card className="border-white/10 bg-white/5">
       <CardHeader>
-        <CardTitle>Step 2 — Connect job portals</CardTitle>
+        <CardTitle>Step 2 - Connect job portals</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {children}
         <div className="flex justify-between">
           <Button variant="secondary" onClick={onBack}>
-            ← Back
+            {"<-"} Back
           </Button>
           <Button className="bg-[#6366f1] hover:bg-[#5558e6]" onClick={onContinue}>
-            Continue →
+            Continue
           </Button>
         </div>
       </CardContent>
     </Card>
   );
 }
-

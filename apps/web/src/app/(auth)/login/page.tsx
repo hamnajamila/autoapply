@@ -6,11 +6,12 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { signIn, useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { api } from "@/lib/api";
+import { toast } from "@/hooks/use-toast";
 
 const Schema = z.object({
   email: z.string().email(),
@@ -19,7 +20,6 @@ const Schema = z.object({
 type FormValues = z.infer<typeof Schema>;
 
 export default function LoginPage() {
-  const { status } = useSession();
   const router = useRouter();
   useEffect(() => {
     const tokenFromOAuth = new URLSearchParams(window.location.search).get("token");
@@ -30,16 +30,26 @@ export default function LoginPage() {
     }
   }, [router]);
 
-  if (status === "authenticated") {
-    router.replace("/dashboard");
-  }
+  useEffect(() => {
+    const existing = localStorage.getItem("autoapply_token");
+    if (existing) router.replace("/dashboard");
+  }, [router]);
 
   const form = useForm<FormValues>({ resolver: zodResolver(Schema), defaultValues: { email: "", password: "" } });
 
   const onSubmit = async (values: FormValues) => {
-    const res = await signIn("credentials", { ...values, redirect: false });
-    if (res?.ok) router.push("/dashboard");
-    else form.setError("password", { message: "Invalid credentials" });
+    try {
+      const res = await api.post("/api/auth/login", values);
+      const token = String(res.data?.token ?? "");
+      if (!token) throw new Error("Missing token");
+      localStorage.setItem("autoapply_token", token);
+      toast({ title: "Signed in", description: "Welcome back." });
+      router.push("/dashboard");
+    } catch (err: any) {
+      const msg = err?.response?.data?.error ?? err?.message ?? "Sign in failed";
+      form.setError("password", { message: msg });
+      toast({ title: "Sign in failed", description: msg, variant: "destructive" });
+    }
   };
 
   return (

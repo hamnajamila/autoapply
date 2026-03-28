@@ -1,148 +1,196 @@
 # AutoApply
 
-```
-     _         _        ___                 _       
-    / \  _   _| |_ ___ / _ \ _ __  _ __ ___| | ___  
-   / _ \| | | | __/ _ \ | | | '_ \| '__/ _ \ |/ _ \ 
+```text
+     _         _        ___                 _
+    / \  _   _| |_ ___ / _ \ _ __  _ __ ___| | ___
+   / _ \| | | | __/ _ \ | | | '_ \| '__/ _ \ |/ _ \
   / ___ \ |_| | || (_) | |_| | |_) | | |  __/ | (_) |
- /_/   \_\__,_|\__\___/ \___/| .__/|_|  \___|_|\___/ 
-                             |_|                     
+ /_/   \_\__,_|\__\___/ \___/| .__/|_|  \___|_|\___/
+                             |_|
 ```
 
-![CI](https://github.com/<username>/autoapply/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/hamnajamila/autoapply/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Node](https://img.shields.io/badge/node-20%20LTS-brightgreen.svg)
 
-Autonomous AI agent that discovers remote jobs, scores fit field-agnostically, auto-applies via browser automation, and emails you every action.
+AutoApply is a production-focused monorepo for discovering remote jobs, scoring them against a user profile, and automating safe application flows across supported portals and ATS systems.
 
 ## Features
-- ✅ Field-agnostic resume parsing (PDF/DOCX) into an editable structured profile
-- ✅ Multi-portal scraping + job storage (even if skipped)
-- ✅ LLM-based match scoring (0–100) with reasons + missing skills
-- ✅ Auto-apply via Playwright with form detection + audit screenshots
-- ✅ CAPTCHA detection → safe skip + user email
-- ✅ Encrypted portal credentials at rest (AES-256-GCM)
-- ✅ BullMQ workers for scrape/match/apply
-- ✅ Dashboard UI (overview, applications, portals, profile, settings)
+- Field-agnostic resume parsing for PDF and DOCX uploads.
+- Editable structured profile storage with skills, experience, education, certifications, and languages.
+- Multi-portal scraping with durable job storage even when a job is skipped.
+- Free-first AI runtime: local Ollama first, deterministic fallback next, optional OpenAI support if configured.
+- Match scoring with reasons, missing-skill analysis, and configurable thresholds.
+- Playwright-driven form extraction, form filling, screenshots, CAPTCHA detection, and submission auditing.
+- Encrypted portal credentials at rest using AES-256-GCM.
+- Queue-based scrape, match, and apply workers using BullMQ and Redis.
+- Next.js dashboard for onboarding, portals, applications, profile editing, and agent controls.
+- Support for the 12 built-in portals plus user-added custom portal records.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  Web[Next.js Web] -->|REST + JWT| API[Express API]
-  API --> DB[(PostgreSQL)]
-  API --> R[(Redis)]
-  API --> Q[BullMQ Queues]
-  Q --> W[Workers]
-  W --> DB
-  W -->|Playwright| Portals[Job Portals / ATS]
-  W -->|OpenAI| LLM[LLM Provider]
-  W --> Email[Resend/SMTP Email]
+  Web["Next.js web app"] -->|REST + JWT| API["Express API"]
+  API --> DB[("PostgreSQL 16")]
+  API --> Redis[("Redis 7")]
+  API --> Queues["BullMQ queues"]
+  Queues --> Workers["Scrape / match / apply workers"]
+  Workers --> Browser["Playwright automation"]
+  Workers --> AI["Ollama / heuristic / optional OpenAI"]
+  Workers --> Email["SMTP or Resend"]
+  Browser --> Portals["Job portals and ATS targets"]
 ```
 
-## Supported portals
+## Supported Portals
+
 | Portal | Scraping | Auto-Apply | Auth |
-|---|---:|---:|---|
-| LinkedIn | ✅ API | ✅ Easy Apply | OAuth 2.0 |
-| JobRight.ai | ✅ Playwright | ✅ | Email/Pass |
-| Mercor | ✅ Playwright | ✅ | Email/Pass |
-| RemoteOK | ✅ API | ✅ Playwright | None |
-| Remotive | ✅ API | ✅ Playwright | None |
-| We Work Remotely | ✅ Scrape | ✅ Playwright | None |
-| Himalayas | ✅ API | ✅ Playwright | None |
-| Wellfound | ✅ Playwright | ✅ | Email/Pass |
-| Greenhouse ATS | via apply URLs | ✅ | None |
-| Lever ATS | via apply URLs | ✅ | None |
-| Workday ATS | via apply URLs | ⚠️ Complex | None/Account |
-| Remote.co | ✅ Scrape | ✅ Playwright | None |
+| --- | --- | --- | --- |
+| LinkedIn | API | Easy Apply and external flows | OAuth 2.0 |
+| JobRight.ai | Playwright | Yes | Email and password |
+| Mercor | Playwright | Yes with manual skip guards | Email/password or Google flow |
+| RemoteOK | Public API | Playwright | None |
+| Remotive | Public API | Playwright | None |
+| We Work Remotely | Scrape | Playwright | None |
+| Himalayas | Public API | Playwright | None |
+| Wellfound | Playwright | Yes | Email and password |
+| Greenhouse ATS | Via apply URLs | Playwright | None |
+| Lever ATS | Via apply URLs | Playwright | None |
+| Workday ATS | Via apply URLs | Partial with manual-required handling | None or account wall |
+| Remote.co | Scrape | Playwright | None |
+| Custom portals | User managed | Stored and surfaced in UI/API | User defined |
 
 ## Prerequisites
 - Node.js 20 LTS
-- Docker Desktop (recommended)
+- npm 10+
+- Docker Desktop
+- Optional: Ollama for local AI inference
 
-## Quickstart (Docker) — 5 commands
+## Quickstart
 
 ```bash
+git clone https://github.com/hamnajamila/autoapply.git
 cd autoapply
-cp .env.example .env
-docker-compose up -d
 npm install
-cd apps/api && npx prisma migrate dev --name init
+docker-compose up -d postgres redis
+npm run prisma:generate
 ```
 
 Then:
 
 ```bash
-cd ../..
 npm run dev
 ```
 
 Open `http://localhost:3000`.
 
-## Manual setup (no Docker)
-1. Install PostgreSQL 16 and Redis 7 locally
-2. Create a database named `autoapply`
-3. Set `DATABASE_URL` and `REDIS_URL` in `.env`
-4. Install dependencies: `npm install`
-5. Migrate: `cd apps/api && npx prisma migrate dev --name init`
-6. Run: `npm run dev`
+## Manual Setup
 
-## Environment variables
-See `.env.example`. Minimum required:
-- `DATABASE_URL` (required)
-- `REDIS_URL` (required)
-- `JWT_SECRET` (required, min 32 chars)
-- `ENCRYPTION_KEY` (required)
-- `OPENAI_API_KEY` (required for LLM features)
-- `RESEND_API_KEY` (or SMTP vars) for email
-- `LINKEDIN_CLIENT_ID` + `LINKEDIN_CLIENT_SECRET` for LinkedIn OAuth
+1. Copy `.env.example` to `.env`.
+2. Set `DATABASE_URL`, `JWT_SECRET`, `ENCRYPTION_KEY`, and `NEXTAUTH_SECRET`.
+3. If you want local AI, install and start Ollama, then pull a model such as `qwen2.5:7b-instruct`.
+4. Start PostgreSQL 16 and Redis 7.
+5. Run `npm run prisma:generate`.
+6. Apply the schema to the database.
+7. Start the app with `npm run dev`, or run `npm run build` followed by the production start commands for API and web.
 
-## How it works
-1. You upload a resume (PDF/DOCX)
-2. The system extracts text and parses it into a structured `UserProfile`
-3. On schedule, the agent enqueues scrape jobs per connected portal
-4. New jobs are stored in PostgreSQL
-5. Each job is match-scored vs your profile text (0–100) + reasons
-6. Above your threshold → queued for auto-apply
-7. Apply worker opens the job in Playwright, detects fields, fills safely, screenshots, submits
-8. Email sent immediately for success/failure/CAPTCHA/manual-required
+## Environment Variables
 
-## Field-agnostic behavior
-Matching and form filling are driven by **only the job description text and your profile JSON**. No industry keywords are hardcoded; the system works across any profession.
+| Variable | Required | Description |
+| --- | --- | --- |
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `REDIS_URL` | Yes | Redis connection string |
+| `JWT_SECRET` | Yes | JWT signing secret |
+| `ENCRYPTION_KEY` | Yes | AES-256-GCM key seed |
+| `NEXTAUTH_SECRET` | Yes | NextAuth secret |
+| `LLM_PROVIDER` | No | `ollama`, `heuristic`, `openai`, or `auto` |
+| `OLLAMA_BASE_URL` | No | Local Ollama server URL |
+| `OLLAMA_MODEL` | No | Local Ollama model name |
+| `OPENAI_API_KEY` | No | Optional paid AI fallback |
+| `SMTP_HOST` | No | SMTP host for email delivery |
+| `SMTP_PORT` | No | SMTP port |
+| `SMTP_USER` | No | SMTP username |
+| `SMTP_PASS` | No | SMTP password |
+| `RESEND_API_KEY` | No | Optional Resend fallback |
+| `LINKEDIN_CLIENT_ID` | No | LinkedIn OAuth client id |
+| `LINKEDIN_CLIENT_SECRET` | No | LinkedIn OAuth client secret |
+| `NEXT_PUBLIC_API_URL` | Yes | Browser-visible API base URL |
 
-## API documentation
-Routes are implemented under `apps/api/src/routes/`.
+See [`/.env.example`](C:/Users/DELL/Desktop/AutoApply/autoapply/.env.example) for the full list.
 
-## Add a new portal
-Extend `BasePortal` and register it in `PortalRegistry`.
+## How It Works
+
+1. A user registers, uploads a resume, and reviews the structured profile generated from resume text.
+2. The user connects one or more supported portals and can also store custom portal entries.
+3. The scheduler or manual trigger queues scrape jobs for active portals.
+4. New listings are saved to PostgreSQL and deduplicated.
+5. Each job is match-scored against the user profile.
+6. Jobs above the configured threshold are queued for application.
+7. The apply worker restores cookies, detects CAPTCHA, captures screenshots, fills forms, and attempts submission.
+8. Results are stored in the application record and email notifications are sent.
+
+## Field-Agnostic Matching
+
+AutoApply does not assume a technical role, creative role, healthcare role, or any other fixed industry. Matching is driven by profile text, extracted skills, experience, education, and the plain text of the job description. This keeps the scoring logic usable across software, design, operations, marketing, legal, education, clinical, and other career paths.
+
+## API Reference
+
+Core routes live under [`/apps/api/src/routes`](C:/Users/DELL/Desktop/AutoApply/autoapply/apps/api/src/routes):
+- `auth.ts`
+- `profile.ts`
+- `portals.ts`
+- `applications.ts`
+- `agent.ts`
+- `dashboard.ts`
+
+## Adding A New Portal
+
+Extend [`BasePortal.ts`](C:/Users/DELL/Desktop/AutoApply/autoapply/apps/api/src/services/portals/BasePortal.ts) and register the class in the portal registry.
 
 ```ts
-import { BasePortal } from "@/services/portals/BasePortal";
-
-export class NewPortal extends BasePortal {
-  readonly name = "newportal";
-  readonly displayName = "NewPortal";
+export class ExamplePortal extends BasePortal {
+  readonly name = "example";
+  readonly displayName = "Example Portal";
   readonly logoUrl = "https://example.com/logo.png";
   readonly requiresAuth = false;
 
-  async scrapeJobs() { return []; }
-  async applyToJob(job, profile, resumePath) { /* ... */ }
-  async isLoggedIn() { return true; }
-  async login() { return; }
+  async scrapeJobs() {
+    return [];
+  }
+
+  async applyToJob(job, profile, resumePath) {
+    return { success: false, status: "SKIPPED_MANUAL", errorMessage: "Not implemented" };
+  }
+
+  async isLoggedIn() {
+    return true;
+  }
+
+  async login() {
+    return;
+  }
 }
 ```
 
 ## Troubleshooting
-- **Redis connection errors**: ensure `docker-compose` is running and `REDIS_URL` is correct.
-- **Prisma client issues**: run `npm run prisma:generate`.
-- **Playwright missing browsers**: `npx playwright install` (done automatically on install in most cases).
 
-## Legal disclaimer
-Use responsibly. Respect portal terms of service and local laws. AutoApply detects CAPTCHAs but does not bypass them.
+- If Prisma validation passes but migration execution fails, confirm PostgreSQL is reachable and the target schema exists.
+- If the API cannot reach Redis locally, recreate the Docker Compose services so host port bindings are applied cleanly.
+- If resume parsing falls back to heuristics, confirm Ollama is running or configure an optional remote provider.
+- If email delivery fails in development, use SMTP settings that point to a local mail catcher or a free SMTP test account.
+- If a portal returns CAPTCHA or an account-creation wall, AutoApply will skip safely and preserve the audit trail.
+
+## Legal And Usage Notice
+
+Use this project responsibly. Review each portal's terms of service, rate limits, and automation policies before using it against live services. The software intentionally skips CAPTCHA solving and other high-risk bypass behavior.
 
 ## Contributing
-PRs welcome. Keep changes field-agnostic and avoid hardcoded role/industry assumptions.
+
+1. Create a feature branch.
+2. Run `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build`.
+3. Add or update tests for behavior changes.
+4. Open a pull request with a clear summary and verification notes.
 
 ## License
-MIT
 
+MIT

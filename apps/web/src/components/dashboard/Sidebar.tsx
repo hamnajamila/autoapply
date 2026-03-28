@@ -18,8 +18,8 @@ const nav = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const collapsed = useUIStore((s) => s.sidebarCollapsed);
-  const setCollapsed = useUIStore((s) => s.setSidebarCollapsed);
+  const collapsed = useUIStore((state) => state.sidebarCollapsed);
+  const setCollapsed = useUIStore((state) => state.setSidebarCollapsed);
 
   const statusQ = useAgentStatus();
   const start = useStartAgent();
@@ -27,35 +27,35 @@ export function Sidebar() {
   const enabled = Boolean(statusQ.data?.enabled);
 
   return (
-    <aside className={cn("h-screen sticky top-0 border-r border-white/10 bg-black/20", collapsed ? "w-16" : "w-64")}>
+    <aside className={cn("sticky top-0 h-screen border-r border-white/10 bg-black/20", collapsed ? "w-16" : "w-64")}>
       <div className="p-4">
         <div className="flex items-center justify-between">
           <div className={cn("font-bold tracking-tight", collapsed && "hidden")}>AutoApply</div>
           <Button size="sm" variant="secondary" onClick={() => setCollapsed(!collapsed)}>
-            {collapsed ? "→" : "←"}
+            {collapsed ? ">" : "<"}
           </Button>
         </div>
       </div>
       <Separator className="bg-white/10" />
-      <nav className="p-2 space-y-1">
-        {nav.map((n) => {
-          const active = pathname === n.href;
+      <nav className="space-y-1 p-2">
+        {nav.map((item) => {
+          const active = pathname === item.href;
           return (
             <Link
-              key={n.href}
-              href={n.href}
+              key={item.href}
+              href={item.href}
               className={cn(
                 "block rounded-md px-3 py-2 text-sm",
                 active ? "bg-white/10 text-white" : "text-white/70 hover:bg-white/5 hover:text-white"
               )}
             >
-              {collapsed ? n.label.slice(0, 1) : n.label}
+              {collapsed ? item.label.slice(0, 1) : item.label}
             </Link>
           );
         })}
       </nav>
 
-      <div className="mt-auto p-4 space-y-3">
+      <div className="mt-auto space-y-3 p-4">
         <Separator className="bg-white/10" />
         <div className={cn("text-xs text-white/70", collapsed && "hidden")}>Agent</div>
         <div className="flex items-center justify-between gap-2">
@@ -73,10 +73,9 @@ export function Sidebar() {
           </Button>
         </div>
         <div className={cn("text-xs text-white/60", collapsed && "hidden")}>
-          Last run: {statusQ.data?.lastRun ? new Date(statusQ.data.lastRun).toLocaleString() : "—"}
+          Last run: {statusQ.data?.lastRun ? new Date(statusQ.data.lastRun).toLocaleString() : "Not available"}
         </div>
       </div>
     </aside>
   );
 }
-

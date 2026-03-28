@@ -2,12 +2,19 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-COPY package.json ./
-RUN npm install
+COPY package.json package-lock.json tsconfig.base.json ./
+COPY apps/web/package.json ./apps/web/package.json
+COPY packages/shared/package.json ./packages/shared/package.json
 
-COPY . .
-RUN npm run build
+RUN npm ci
+
+COPY packages ./packages
+COPY apps/web ./apps/web
+
+RUN npm run -w packages/shared build && npm run -w apps/web build
+
+WORKDIR /app/apps/web
 
 EXPOSE 3000
-CMD ["npm","run","start"]
 
+CMD ["npm", "run", "start"]

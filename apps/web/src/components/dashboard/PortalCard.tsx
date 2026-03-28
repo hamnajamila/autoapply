@@ -14,12 +14,12 @@ export function PortalCard({
   onDisconnect: () => void;
 }) {
   return (
-    <Card className="bg-white/5 border-white/10">
-      <CardContent className="p-4 space-y-3">
+    <Card className="border-white/10 bg-white/5">
+      <CardContent className="space-y-3 p-4">
         <div className="flex items-center justify-between">
           <div className="font-semibold">{portal.displayName}</div>
           <Badge className={portal.connected ? "bg-emerald-600/20 text-emerald-200" : "bg-white/10 text-white/70"}>
-            {portal.connected ? "Connected ✓" : "Not connected"}
+            {portal.connected ? "Connected" : "Not connected"}
           </Badge>
         </div>
         <div className="text-xs text-white/60">{portal.description}</div>
@@ -37,4 +37,3 @@ export function PortalCard({
     </Card>
   );
 }
-

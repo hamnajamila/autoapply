@@ -16,7 +16,17 @@ logger.info("Workers started");
 
 process.on("SIGINT", async () => {
   logger.info("Shutting down workers...");
-  await Promise.all([scrapeWorker.close(), matchWorker.close(), applyWorker.close()].map((p) => p.catch(() => undefined)));
+  const results = await Promise.allSettled([
+    scrapeWorker.close(),
+    matchWorker.close(),
+    applyWorker.close()
+  ]);
+  results.forEach((result, index) => {
+    const names = ["scrape", "match", "apply"];
+    if (result.status === "rejected") {
+      logger.error(`Failed to close ${names[index]} worker`, { error: result.reason });
+    }
+  });
   process.exit(0);
 });
 

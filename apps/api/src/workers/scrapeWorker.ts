@@ -1,6 +1,8 @@
 import { Worker } from "bullmq";
-import type { JobListing } from "@autoapply/shared";
+import type { JobListing, UserProfile } from "@autoapply/shared";
+import { decrypt } from "@autoapply/shared";
 import { prisma } from "../config/database";
+import { env } from "../config/env";
 import { redis } from "../config/redis";
 import { logger } from "../config/logger";
 import { PortalRegistry } from "../services/portals/PortalRegistry";
@@ -77,15 +79,17 @@ export const scrapeWorker = new Worker<ScrapeJobData>(
       if (portal.requiresAuth) {
         const encrypted = cred?.encryptedData ?? "";
         if (!encrypted) throw new Error("missing_portal_credentials");
-        // Credentials are decrypted in agent orchestrator before enqueuing apply; for scrape we only need cookies.
         const ok = await portal.isLoggedIn().catch(() => false);
         if (!ok) {
-          // No password available here; rely on cookies, otherwise portal scrape may fail.
-          throw new Error("not_logged_in");
+          const credentials = JSON.parse(decrypt(encrypted, env.ENCRYPTION_KEY)) as Record<string, string>;
+          await portal.login(credentials);
+          const loggedIn = await portal.isLoggedIn().catch(() => false);
+          if (!loggedIn) throw new Error("not_logged_in");
         }
       }
 
-      const listings = await portal.scrapeJobs(user.profileJson as any);
+      const profile = user.profileJson as UserProfile | undefined;
+      const listings = await portal.scrapeJobs(profile);
       const newJobIds = await upsertJobs(listings);
 
       job.updateProgress(60).catch(() => undefined);
@@ -113,6 +117,6 @@ export const scrapeWorker = new Worker<ScrapeJobData>(
       await portal.closeBrowser().catch(() => undefined);
     }
   },
-  { connection: redis as any, concurrency: 3 }
+  { connection: redis, concurrency: 3 }
 );
 

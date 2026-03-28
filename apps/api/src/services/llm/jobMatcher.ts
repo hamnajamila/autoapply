@@ -1,7 +1,6 @@
 import type { UserProfile } from "@autoapply/shared";
 import { BaseLLMClient } from "./LLMClient";
-import { OpenAIProvider } from "./OpenAIProvider";
-import { env } from "../../config/env";
+import { getDefaultLLMClient } from "./providerFactory";
 
 export type JobMatchResult = {
   score: number;
@@ -78,16 +77,7 @@ export async function scoreJobMatch(
   jobTitle: string,
   llm?: BaseLLMClient
 ): Promise<JobMatchResult> {
-  const provider =
-    llm ??
-    (() => {
-      if (!env.OPENAI_API_KEY) return null;
-      try {
-        return new OpenAIProvider();
-      } catch {
-        return null;
-      }
-    })();
+  const provider = llm ?? getDefaultLLMClient();
 
   if (!provider) return heuristicMatch(userProfile, jobDescription, jobTitle);
 
@@ -98,13 +88,17 @@ export async function scoreJobMatch(
     `Scoring weights (do not mention industries):\n` +
     `- Skills overlap 40%\n- Experience level match 30%\n- Role type match 20%\n- Education/certifications 10%\n`;
 
-  const res = await provider.completeJSON<any>(prompt, SYSTEM_PROMPT);
-  const score = clamp(Number(res?.score ?? 0), 0, 100);
-  const reasons = Array.isArray(res?.reasons) ? res.reasons.filter((r: any) => typeof r === "string").slice(0, 5) : [];
-  const missingSkills = Array.isArray(res?.missingSkills)
-    ? res.missingSkills.filter((r: any) => typeof r === "string").slice(0, 20)
-    : [];
-  const confident = Boolean(res?.confident);
-  return { score, reasons, missingSkills, confident };
+  try {
+    const res = await provider.completeJSON<any>(prompt, SYSTEM_PROMPT);
+    const score = clamp(Number(res?.score ?? 0), 0, 100);
+    const reasons = Array.isArray(res?.reasons) ? res.reasons.filter((r: any) => typeof r === "string").slice(0, 5) : [];
+    const missingSkills = Array.isArray(res?.missingSkills)
+      ? res.missingSkills.filter((r: any) => typeof r === "string").slice(0, 20)
+      : [];
+    const confident = Boolean(res?.confident);
+    return { score, reasons, missingSkills, confident };
+  } catch {
+    return heuristicMatch(userProfile, jobDescription, jobTitle);
+  }
 }
 

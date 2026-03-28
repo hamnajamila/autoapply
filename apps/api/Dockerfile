@@ -1,19 +1,22 @@
-FROM node:20-alpine
+FROM node:20-bookworm-slim
 
 WORKDIR /app
 
-COPY package.json ./
-COPY ../../package.json ../../tsconfig.base.json /tmp/root/
-COPY ../../packages/shared /tmp/shared
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
-RUN npm install -w @autoapply/shared --prefix /tmp/root && \
-    npm install
+COPY package.json package-lock.json tsconfig.base.json ./
+COPY apps/api/package.json ./apps/api/package.json
+COPY packages/shared/package.json ./packages/shared/package.json
 
-COPY . .
+RUN npm ci
 
-RUN npm run build
+COPY packages ./packages
+COPY apps/api ./apps/api
+
+RUN npm run -w apps/api prisma:generate && npm run -w packages/shared build && npm run -w apps/api build
+
+WORKDIR /app/apps/api
 
 EXPOSE 3001
 
-CMD ["npm","run","start"]
-
+CMD ["npm", "run", "start"]

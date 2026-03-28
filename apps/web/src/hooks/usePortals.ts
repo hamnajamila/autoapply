@@ -27,3 +27,20 @@ export function useDisconnectPortal() {
   });
 }
 
+export function useCreateCustomPortal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ name, url }: { name: string; url: string }) =>
+      (await api.post("/api/portals/custom", { name, url })).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["portals"] })
+  });
+}
+
+export function useDeleteCustomPortal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => (await api.delete(`/api/portals/custom/${id}`)).data,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["portals"] })
+  });
+}
+

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
-import { signIn } from "next-auth/react";
+import { toast } from "@/hooks/use-toast";
 
 const Schema = z
   .object({
@@ -30,9 +30,25 @@ export default function RegisterPage() {
   });
 
   const onSubmit = async (values: FormValues) => {
-    await api.post("/api/auth/register", { name: values.name, email: values.email, password: values.password });
-    const res = await signIn("credentials", { email: values.email, password: values.password, redirect: false });
-    if (res?.ok) router.push("/onboarding");
+    console.log("Form submitted with values:", values);
+    console.log("API URL:", process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001");
+    try {
+      const res = await api.post("/api/auth/register", { name: values.name, email: values.email, password: values.password });
+      console.log("Register response:", res.data);
+      const token = String(res.data?.token ?? "");
+      if (!token) throw new Error("Missing token");
+      localStorage.setItem("autoapply_token", token);
+      toast({ title: "Registered", description: "Welcome! Let's set up your profile." });
+      router.push("/onboarding");
+    } catch (err: any) {
+      console.error("Register error:", err);
+      const status = err?.response?.status;
+      const msg = err?.response?.data?.error ?? err?.message ?? "Registration failed";
+      if (status === 409) {
+        form.setError("email", { message: "Email already in use. Try signing in instead." });
+      }
+      toast({ title: "Registration failed", description: msg, variant: "destructive" });
+    }
   };
 
   return (
@@ -46,10 +62,16 @@ export default function RegisterPage() {
             <div className="space-y-1">
               <div className="text-sm text-white/70">Name</div>
               <Input className="bg-white/5 border-white/10" {...form.register("name")} />
+              {form.formState.errors.name?.message ? (
+                <div className="text-xs text-rose-300">{form.formState.errors.name.message}</div>
+              ) : null}
             </div>
             <div className="space-y-1">
               <div className="text-sm text-white/70">Email</div>
               <Input className="bg-white/5 border-white/10" {...form.register("email")} />
+              {form.formState.errors.email?.message ? (
+                <div className="text-xs text-rose-300">{form.formState.errors.email.message}</div>
+              ) : null}
             </div>
             <div className="space-y-1">
               <div className="text-sm text-white/70">Password</div>
@@ -67,6 +89,28 @@ export default function RegisterPage() {
             </div>
             <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting ? "Creating..." : "Create account"}
+            </Button>
+            {!form.formState.isValid && form.formState.isSubmitted ? (
+              <div className="text-xs text-rose-300 text-center">Please fix errors above</div>
+            ) : null}
+            <Button 
+              type="button" 
+              variant="outline" 
+              className="w-full text-xs" 
+              onClick={async () => {
+                try {
+                  const res = await api.post("/api/auth/register", { 
+                    name: "Test", 
+                    email: "test@test.com", 
+                    password: "password123" 
+                  });
+                  alert("Test successful: " + JSON.stringify(res.data));
+                } catch (err: any) {
+                  alert("Test failed: " + (err?.message || "Unknown error"));
+                }
+              }}
+            >
+              Test API Connection
             </Button>
           </form>
 

@@ -1,8 +1,7 @@
 import type { UserPreferences, UserProfile } from "@autoapply/shared";
 import type { FormField } from "../automation/FormDetector";
 import { BaseLLMClient } from "./LLMClient";
-import { OpenAIProvider } from "./OpenAIProvider";
-import { env } from "../../config/env";
+import { getDefaultLLMClient } from "./providerFactory";
 
 export type FilledField = FormField & { valueToFill: string | boolean; confidence: number };
 
@@ -28,44 +27,51 @@ const SYSTEM_PROMPT =
   "- For 'how did you hear about us': put 'Online Job Board'\n" +
   "- NEVER make up qualifications the candidate does not have";
 
-function normalize(s: string) {
-  return s.toLowerCase().replace(/\s+/g, " ").trim();
+function normalize(text: string) {
+  return text.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function yearsOfExperience(profile: UserProfile): number {
-  const ex = profile.experience ?? [];
-  if (!ex.length) return 0;
-  const toYear = (d: string) => {
-    const m = d.match(/(19|20)\d{2}/);
-    return m ? Number(m[0]) : NaN;
+  if (!profile.experience.length) return 0;
+
+  const toYear = (date: string) => {
+    const match = date.match(/(19|20)\d{2}/);
+    return match ? Number(match[0]) : Number.NaN;
   };
-  const years: number[] = [];
-  for (const e of ex) {
-    const s = toYear(e.startDate);
-    const end = e.endDate === "Present" ? new Date().getFullYear() : toYear(e.endDate);
-    if (Number.isFinite(s) && Number.isFinite(end) && end >= s) years.push(end - s);
-  }
-  if (!years.length) return 0;
-  return Math.max(...years);
+
+  const spans = profile.experience
+    .map((experience) => {
+      const start = toYear(experience.startDate);
+      const end = experience.endDate === "Present" ? new Date().getFullYear() : toYear(experience.endDate);
+      return Number.isFinite(start) && Number.isFinite(end) && end >= start ? end - start : 0;
+    })
+    .filter((years) => years > 0);
+
+  return spans.length ? Math.max(...spans) : 0;
 }
 
-function heuristicFill(fields: FormField[], profile: UserProfile, jobTitle: string, prefs?: UserPreferences): FilledField[] {
-  const out: FilledField[] = [];
+function heuristicFill(
+  fields: FormField[],
+  profile: UserProfile,
+  jobTitle: string,
+  preferences?: UserPreferences
+): FilledField[] {
+  const result: FilledField[] = [];
   const yoe = yearsOfExperience(profile);
   const salary =
-    prefs?.salaryMin && prefs?.salaryMax
-      ? `${prefs.salaryMin}-${prefs.salaryMax}${prefs.salaryCurrency ? ` ${prefs.salaryCurrency}` : ""}`
+    preferences?.salaryMin && preferences?.salaryMax
+      ? `${preferences.salaryMin}-${preferences.salaryMax}${preferences.salaryCurrency ? ` ${preferences.salaryCurrency}` : ""}`
       : "";
 
-  for (const f of fields) {
-    const label = normalize(f.label);
+  for (const field of fields) {
+    const label = normalize(field.label);
     let value: string | boolean | null = null;
     let confidence = 0;
 
-    if (f.type === "email" || label.includes("email")) {
+    if (field.type === "email" || label.includes("email")) {
       value = profile.email;
       confidence = profile.email ? 0.95 : 0;
-    } else if (f.type === "tel" || label.includes("phone")) {
+    } else if (field.type === "tel" || label.includes("phone")) {
       value = profile.phone ?? "";
       confidence = profile.phone ? 0.9 : 0;
     } else if (label.includes("full name") || (label.includes("name") && !label.includes("company"))) {
@@ -89,76 +95,81 @@ function heuristicFill(fields: FormField[], profile: UserProfile, jobTitle: stri
     } else if (label.includes("salary") || label.includes("compensation")) {
       value = salary;
       confidence = salary ? 0.75 : 0;
-    } else if (f.type === "checkbox" && (label.includes("authorized") || label.includes("work") || label.includes("consent"))) {
+    } else if (
+      field.type === "checkbox" &&
+      (label.includes("authorized") || label.includes("work") || label.includes("consent"))
+    ) {
       value = true;
       confidence = 0.75;
     } else if (label.includes("how did you hear")) {
       value = "Online Job Board";
       confidence = 0.8;
-    } else if (label.includes("cover letter") || label.includes("why do you want") || label.includes("why are you interested")) {
-      const skills = (profile.skills ?? []).slice(0, 6).join(", ");
-      const summary = profile.summary?.trim() ?? "";
-      const text =
-        `${summary ? summary + " " : ""}I’m interested in the ${jobTitle} opportunity because my experience and skills ` +
-        `(${skills || "relevant skills"}) align with the role’s requirements. I’m excited to contribute and learn quickly.`;
-      value = text.slice(0, 1200);
+    } else if (
+      label.includes("cover letter") ||
+      label.includes("why do you want") ||
+      label.includes("why are you interested")
+    ) {
+      const skills = profile.skills.slice(0, 6).join(", ");
+      const summary = profile.summary.trim();
+      value =
+        `${summary ? `${summary} ` : ""}I'm interested in the ${jobTitle} opportunity because my experience and skills ` +
+        `(${skills || "relevant skills"}) align with the role's requirements. I'm excited to contribute and learn quickly.`;
       confidence = 0.7;
     }
 
     if (confidence > 0 && value !== null && String(value).trim().length > 0) {
-      out.push({ ...f, valueToFill: value, confidence });
+      result.push({ ...field, valueToFill: value, confidence });
     }
   }
-  return out;
+
+  return result;
 }
 
 export async function fillFormFields(
   fields: FormField[],
   userProfile: UserProfile,
   jobTitle: string,
-  opts?: { llm?: BaseLLMClient; preferences?: UserPreferences }
+  options?: { llm?: BaseLLMClient; preferences?: UserPreferences }
 ): Promise<FilledField[]> {
-  const provider =
-    opts?.llm ??
-    (() => {
-      if (!env.OPENAI_API_KEY) return null;
-      try {
-        return new OpenAIProvider();
-      } catch {
-        return null;
-      }
-    })();
-
-  if (!provider) return heuristicFill(fields, userProfile, jobTitle, opts?.preferences);
+  const provider = options?.llm ?? getDefaultLLMClient();
+  if (!provider) return heuristicFill(fields, userProfile, jobTitle, options?.preferences);
 
   const prompt =
     `Job title: ${jobTitle}\n\n` +
     `Candidate profile JSON:\n${JSON.stringify(userProfile)}\n\n` +
-    `User preferences JSON (may be empty):\n${JSON.stringify(opts?.preferences ?? {})}\n\n` +
+    `User preferences JSON (may be empty):\n${JSON.stringify(options?.preferences ?? {})}\n\n` +
     `Form fields JSON:\n${JSON.stringify(fields)}\n\n` +
     `Return only fields where confidence > 0.`;
 
-  const mapped = await provider.completeJSON<any[]>(prompt, SYSTEM_PROMPT);
-  const bySelector = new Map<string, { valueToFill: any; confidence: number }>();
-  for (const m of Array.isArray(mapped) ? mapped : []) {
-    if (typeof m?.selector !== "string") continue;
-    const conf = Number(m?.confidence ?? 0);
-    if (!Number.isFinite(conf) || conf <= 0) continue;
-    bySelector.set(m.selector, { valueToFill: m.valueToFill, confidence: conf });
-  }
+  try {
+    const mapped = await provider.completeJSON<
+      Array<{ selector?: string; valueToFill?: string | boolean; confidence?: number }>
+    >(prompt, SYSTEM_PROMPT);
+    const valuesBySelector = new Map<string, { valueToFill: string | boolean | undefined; confidence: number }>();
 
-  const out: FilledField[] = [];
-  for (const f of fields) {
-    const m = bySelector.get(f.selector);
-    if (!m) continue;
-    const confidence = Math.max(0, Math.min(1, m.confidence));
-    let valueToFill: string | boolean;
-    if (f.type === "checkbox") valueToFill = Boolean(m.valueToFill);
-    else valueToFill = String(m.valueToFill ?? "");
-    if (confidence > 0 && (typeof valueToFill === "boolean" || valueToFill.trim().length > 0)) {
-      out.push({ ...f, valueToFill, confidence });
+    for (const item of Array.isArray(mapped) ? mapped : []) {
+      if (typeof item?.selector !== "string") continue;
+      const confidence = Number(item?.confidence ?? 0);
+      if (!Number.isFinite(confidence) || confidence <= 0) continue;
+      valuesBySelector.set(item.selector, { valueToFill: item.valueToFill, confidence });
     }
-  }
-  return out.length ? out : heuristicFill(fields, userProfile, jobTitle, opts?.preferences);
-}
 
+    const result: FilledField[] = [];
+    for (const field of fields) {
+      const mappedField = valuesBySelector.get(field.selector);
+      if (!mappedField) continue;
+
+      const confidence = Math.max(0, Math.min(1, mappedField.confidence));
+      const valueToFill =
+        field.type === "checkbox" ? Boolean(mappedField.valueToFill) : String(mappedField.valueToFill ?? "");
+
+      if (confidence > 0 && (typeof valueToFill === "boolean" || valueToFill.trim().length > 0)) {
+        result.push({ ...field, valueToFill, confidence });
+      }
+    }
+
+    return result.length ? result : heuristicFill(fields, userProfile, jobTitle, options?.preferences);
+  } catch {
+    return heuristicFill(fields, userProfile, jobTitle, options?.preferences);
+  }
+}

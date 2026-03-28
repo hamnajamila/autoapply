@@ -6,8 +6,8 @@
     "declaration": true,
     "declarationMap": true,
     "emitDeclarationOnly": false,
-    "moduleResolution": "Bundler",
-    "module": "ESNext"
+    "moduleResolution": "Node16",
+    "module": "Node16"
   },
   "include": ["src/**/*.ts"],
   "exclude": ["dist", "node_modules"]

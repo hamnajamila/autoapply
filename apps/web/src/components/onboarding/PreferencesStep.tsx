@@ -17,15 +17,15 @@ export function PreferencesStep({
   disabled?: boolean;
 }) {
   return (
-    <Card className="bg-white/5 border-white/10">
+    <Card className="border-white/10 bg-white/5">
       <CardHeader>
-        <CardTitle>Step 3 — Preferences</CardTitle>
+        <CardTitle>Step 3 - Preferences</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {children}
         <div className="flex justify-between">
           <Button variant="secondary" onClick={onBack}>
-            ← Back
+            {"<-"} Back
           </Button>
           <Button className="bg-[#6366f1] hover:bg-[#5558e6]" disabled={disabled} onClick={onFinish}>
             {finishLabel}
@@ -35,4 +35,3 @@ export function PreferencesStep({
     </Card>
   );
 }
-
