@@ -6,6 +6,7 @@ import { env } from "../config/env";
 import { authenticate } from "../middleware/authenticate";
 import { validate } from "../middleware/validate";
 import { PortalRegistry } from "../services/portals/PortalRegistry";
+import { BrowserManager } from "../services/automation/BrowserManager";
 
 const router = Router();
 
@@ -82,11 +83,22 @@ router.get("/", authenticate, async (req, res, next) => {
     const creds = await prisma.portalCredential.findMany({ where: { userId } });
     const customPortals = await prisma.customPortal.findMany({ where: { userId, isActive: true } });
     const byName = new Map(creds.map((c) => [c.portalName, c]));
+    const needsBrowserRuntimeCheck = creds.some((cred) => cred.lastError === "browser_setup_required");
+    const browserRuntimeReady = needsBrowserRuntimeCheck ? await BrowserManager.isBrowserRuntimeReady() : false;
     
     // Standard portals
     const standardPortals = PORTALS_META.map((p) => {
       const c = byName.get(p.name);
-      const normalizedError = p.requiresAuth ? normalizePortalError(c?.lastError) : null;
+      const normalizedError =
+        p.requiresAuth && c?.lastError === "browser_setup_required" && browserRuntimeReady
+          ? {
+              code: "reconnect_required",
+              message: "Browser automation is ready again. Reconnect this portal to verify the saved credentials.",
+              helpText: "The earlier runtime issue has been resolved. Reconnect once to refresh this portal session."
+            }
+          : p.requiresAuth
+            ? normalizePortalError(c?.lastError)
+            : null;
       const status = p.portalKind === "ats" ? "built_in" : p.requiresAuth ? (!c ? "not_connected" : normalizedError ? "needs_attention" : "connected") : "available";
       return {
         ...p,
@@ -94,7 +106,7 @@ router.get("/", authenticate, async (req, res, next) => {
         ready: p.portalKind === "ats" ? true : p.requiresAuth ? Boolean(c && !normalizedError) : true,
         status,
         isActive: c?.isActive ?? false,
-        lastSynced: c?.lastSynced ?? null,
+        lastSynced: p.requiresAuth ? c?.lastSynced ?? null : null,
         lastError: normalizedError?.message ?? null,
         lastErrorCode: normalizedError?.code ?? null,
         helpText:

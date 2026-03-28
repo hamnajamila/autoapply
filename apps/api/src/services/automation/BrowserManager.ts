@@ -19,6 +19,15 @@ export class BrowserManager {
   private static launching: Promise<Browser> | null = null;
   private static verified = false;
 
+  static async isBrowserRuntimeReady(): Promise<boolean> {
+    try {
+      await this.verifyBrowsersInstalled();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   static async verifyBrowsersInstalled(): Promise<void> {
     if (this.verified) return;
     try {

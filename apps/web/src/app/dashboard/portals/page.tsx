@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { usePortals, useConnectPortal, useDisconnectPortal, useCreateCustomPortal, useDeleteCustomPortal } from "@/hooks/usePortals";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -8,7 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { getApiBaseUrl } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type PortalRecord = {
   id?: string;
@@ -26,6 +27,16 @@ type PortalRecord = {
   helpText?: string | null;
   isCustom?: boolean;
 };
+
+function getErrorMessage(err: unknown, fallback: string) {
+  if (typeof err === "object" && err !== null) {
+    const response = "response" in err ? (err as { response?: { data?: { error?: string } } }).response : undefined;
+    const message = "message" in err ? (err as { message?: string }).message : undefined;
+    return response?.data?.error ?? message ?? fallback;
+  }
+
+  return fallback;
+}
 
 function getPortalBadge(portal: PortalRecord) {
   if (portal.isCustom) {
@@ -52,6 +63,16 @@ function getPortalBadge(portal: PortalRecord) {
 }
 
 export default function PortalsPage() {
+  return (
+    <Suspense fallback={<div className="text-sm text-white/70">Loading portals...</div>}>
+      <PortalsPageContent />
+    </Suspense>
+  );
+}
+
+function PortalsPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const portalsQ = usePortals();
   const connect = useConnectPortal();
   const disconnect = useDisconnectPortal();
@@ -61,22 +82,79 @@ export default function PortalsPage() {
   const [customUrl, setCustomUrl] = useState("");
   const [isAddingCustom, setIsAddingCustom] = useState(false);
   const [activePortalName, setActivePortalName] = useState<string | null>(null);
+  const [linkedinLoading, setLinkedinLoading] = useState(false);
+  const [linkedinMessage, setLinkedinMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (searchParams.get("linkedin") !== "not-configured") {
+      return;
+    }
+
+    const missing = searchParams.get("missing");
+    const description = missing
+      ? `LinkedIn OAuth is not configured yet. Missing: ${missing.split(",").join(", ")}.`
+      : "LinkedIn OAuth is not configured yet.";
+    setLinkedinMessage(description);
+    toast({
+      title: "LinkedIn connect is not configured",
+      description,
+      variant: "destructive"
+    });
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("linkedin");
+    params.delete("missing");
+    const next = params.toString();
+    router.replace(next ? `/dashboard/portals?${next}` : "/dashboard/portals");
+  }, [router, searchParams]);
 
   const portals = useMemo(() => {
-      const items = (portalsQ.data?.portals ?? []) as PortalRecord[];
-      return [...items].sort((a, b) => {
-        const rank = (portal: PortalRecord) => {
-          if (portal.status === "needs_attention") return 0;
-          if (portal.status === "connected") return 1;
-          if (portal.status === "available") return 2;
-          if (portal.status === "built_in") return 3;
-          if (portal.isCustom) return 4;
-          return 5;
-        };
+    const items = (portalsQ.data?.portals ?? []) as PortalRecord[];
+    return [...items].sort((a, b) => {
+      const rank = (portal: PortalRecord) => {
+        if (portal.status === "needs_attention") return 0;
+        if (portal.status === "connected") return 1;
+        if (portal.status === "available") return 2;
+        if (portal.status === "built_in") return 3;
+        if (portal.isCustom) return 4;
+        return 5;
+      };
 
-        return rank(a) - rank(b) || a.displayName.localeCompare(b.displayName);
+      return rank(a) - rank(b) || a.displayName.localeCompare(b.displayName);
     });
   }, [portalsQ.data?.portals]);
+
+  const handleLinkedInConnect = async () => {
+    setLinkedinLoading(true);
+    setLinkedinMessage(null);
+
+    try {
+      const status = await api.get("/api/auth/linkedin/status");
+      if (!status.data?.configured) {
+        const missing = Array.isArray(status.data?.missing) ? status.data.missing.join(", ") : "LinkedIn OAuth settings";
+        const message = `LinkedIn OAuth still needs setup. Missing: ${missing}.`;
+        setLinkedinMessage(message);
+        toast({
+          title: "LinkedIn connect is not ready",
+          description: message,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      window.location.href = `${getApiBaseUrl().replace(/\/$/, "")}/api/auth/linkedin`;
+    } catch (err: any) {
+      const message = getErrorMessage(err, "Could not start LinkedIn authentication.");
+      setLinkedinMessage(message);
+      toast({
+        title: "LinkedIn connect failed",
+        description: message,
+        variant: "destructive"
+      });
+    } finally {
+      setLinkedinLoading(false);
+    }
+  };
 
   const handleAddCustom = async () => {
     if (!customName || !customUrl) {
@@ -92,7 +170,7 @@ export default function PortalsPage() {
     } catch (err: any) {
       toast({
         title: "Failed to add portal",
-        description: err?.response?.data?.error ?? "Could not add custom portal",
+        description: getErrorMessage(err, "Could not add custom portal"),
         variant: "destructive"
       });
     }
@@ -106,6 +184,23 @@ export default function PortalsPage() {
           + Add Custom Portal
         </Button>
       </div>
+
+      <Card className="border-white/10 bg-white/5">
+        <CardContent className="grid gap-4 p-4 text-sm text-white/70 md:grid-cols-3">
+          <div>
+            <div className="font-semibold text-white">Authenticated portals</div>
+            <div className="mt-1">LinkedIn, JobRight.ai, Mercor, and Wellfound need your portal login or OAuth before the agent can use them.</div>
+          </div>
+          <div>
+            <div className="font-semibold text-white">Public source portals</div>
+            <div className="mt-1">RemoteOK, Remotive, Himalayas, We Work Remotely, and Remote.co are available immediately and do not require credentials.</div>
+          </div>
+          <div>
+            <div className="font-semibold text-white">Built-in ATS handlers</div>
+            <div className="mt-1">Greenhouse, Lever, and Workday are used automatically when a job redirects to those application systems.</div>
+          </div>
+        </CardContent>
+      </Card>
 
       {isAddingCustom ? (
         <Card className="border-white/10 bg-white/5">
@@ -153,7 +248,11 @@ export default function PortalsPage() {
 
               <div className="text-xs text-white/60">{portal.description}</div>
               <div className="text-xs text-white/60">
-                Last synced: {portal.lastSynced ? new Date(portal.lastSynced).toLocaleString() : "Not available"}
+                {portal.status === "available"
+                  ? "This source is active by default and will be used by the agent when it runs."
+                  : portal.status === "built_in"
+                    ? "This handler activates automatically when an application redirects to this ATS."
+                    : `Last synced: ${portal.lastSynced ? new Date(portal.lastSynced).toLocaleString() : "Not available"}`}
               </div>
               {portal.lastError ? (
                 <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-100">
@@ -173,14 +272,12 @@ export default function PortalsPage() {
                     Handled automatically during apply
                   </div>
                 ) : portal.name === "linkedin" ? (
-                  <Button
-                    className="w-full bg-[#6366f1] hover:bg-[#5558e6]"
-                    onClick={() => {
-                      window.location.href = `${getApiBaseUrl().replace(/\/$/, "")}/api/auth/linkedin`;
-                    }}
-                  >
-                    {portal.status === "connected" ? "Reconnect" : "Connect"}
-                  </Button>
+                  <div className="w-full space-y-2">
+                    <Button className="w-full bg-[#6366f1] hover:bg-[#5558e6]" disabled={linkedinLoading} onClick={handleLinkedInConnect}>
+                      {linkedinLoading ? "Checking..." : portal.status === "connected" ? "Reconnect" : "Connect"}
+                    </Button>
+                    {linkedinMessage ? <div className="text-xs text-amber-100">{linkedinMessage}</div> : null}
+                  </div>
                 ) : portal.isCustom ? (
                   <Button
                     className="w-full"
@@ -190,10 +287,10 @@ export default function PortalsPage() {
                       portal.id &&
                       deleteCustom.mutate(portal.id, {
                         onSuccess: () => toast({ title: "Deleted", description: `${portal.displayName} removed.` }),
-                        onError: (err: any) =>
+                        onError: (err: unknown) =>
                           toast({
                             title: "Delete failed",
-                            description: err?.response?.data?.error ?? "Could not delete portal",
+                            description: getErrorMessage(err, "Could not delete portal"),
                             variant: "destructive"
                           })
                       })
@@ -217,23 +314,22 @@ export default function PortalsPage() {
                       </DialogHeader>
                       <PortalConnectForm
                         portal={portal}
-                        onSave={async (credentials) => {
-                          try {
-                            const result = await connect.mutateAsync({ portalName: portal.name, credentials });
-                            toast({
-                              title: result?.success ? "Connected" : "Saved",
-                              description: result?.message ?? "Done"
-                            });
-                            if (result?.success) {
-                              setActivePortalName(null);
-                            }
-                          } catch (err: any) {
-                            toast({
-                              title: "Connect failed",
-                              description: err?.response?.data?.error ?? err?.message ?? "Could not connect portal",
-                              variant: "destructive"
-                            });
+                        onSave={async (credentials) => await connect.mutateAsync({ portalName: portal.name, credentials })}
+                        onSuccess={(result) => {
+                          toast({
+                            title: result?.success ? "Connected" : "Verification needs attention",
+                            description: result?.message ?? "Done"
+                          });
+                          if (result?.success) {
+                            setActivePortalName(null);
                           }
+                        }}
+                        onError={(err) => {
+                          toast({
+                            title: "Connect failed",
+                            description: getErrorMessage(err, "Could not connect portal"),
+                            variant: "destructive"
+                          });
                         }}
                       />
                     </DialogContent>
@@ -247,10 +343,10 @@ export default function PortalsPage() {
                     onClick={() =>
                       disconnect.mutate(portal.name, {
                         onSuccess: () => toast({ title: "Disconnected", description: `${portal.displayName} disconnected.` }),
-                        onError: (err: any) =>
+                        onError: (err: unknown) =>
                           toast({
                             title: "Disconnect failed",
-                            description: err?.response?.data?.error ?? err?.message ?? "Could not disconnect",
+                            description: getErrorMessage(err, "Could not disconnect"),
                             variant: "destructive"
                           })
                       })
@@ -270,10 +366,14 @@ export default function PortalsPage() {
 
 function PortalConnectForm({
   portal,
-  onSave
+  onSave,
+  onSuccess,
+  onError
 }: {
   portal: PortalRecord;
-  onSave: (creds: Record<string, string>) => Promise<void>;
+  onSave: (creds: Record<string, string>) => Promise<{ success?: boolean; message?: string }>;
+  onSuccess: (result: { success?: boolean; message?: string }) => void;
+  onError: (err: unknown) => void;
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -304,10 +404,16 @@ function PortalConnectForm({
           setLoading(true);
           setResult(null);
           try {
-            await onSave({ email, password });
-            setResult("Credentials saved and verification completed.");
+            const response = await onSave({ email, password });
+            onSuccess(response);
+            setResult(
+              response?.success
+                ? response?.message ?? "Credentials saved and verification completed."
+                : response?.message ?? "Credentials were saved, but this portal still needs attention."
+            );
           } catch (err: any) {
-            setResult(err?.response?.data?.error ?? err?.message ?? "Failed to connect.");
+            onError(err);
+            setResult(getErrorMessage(err, "Failed to connect."));
           } finally {
             setLoading(false);
           }

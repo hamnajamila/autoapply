@@ -21,6 +21,35 @@ const LoginBody = z.object({
   password: z.string().min(1)
 });
 
+function getLinkedInConfigStatus() {
+  const missing = [
+    !env.LINKEDIN_CLIENT_ID ? "LINKEDIN_CLIENT_ID" : null,
+    !env.LINKEDIN_CLIENT_SECRET ? "LINKEDIN_CLIENT_SECRET" : null,
+    !env.LINKEDIN_REDIRECT_URI ? "LINKEDIN_REDIRECT_URI" : null
+  ].filter((value): value is string => Boolean(value));
+
+  return {
+    configured: missing.length === 0,
+    missing
+  };
+}
+
+function resolveFrontendReturnUrl(req: { get: (header: string) => string | undefined }) {
+  const referer = req.get("referer");
+  if (referer) {
+    try {
+      const url = new URL(referer);
+      url.pathname = "/dashboard/portals";
+      url.search = "";
+      return url.toString();
+    } catch {
+      return `${env.FRONTEND_URL}/dashboard/portals`;
+    }
+  }
+
+  return `${env.FRONTEND_URL}/dashboard/portals`;
+}
+
 function signToken(user: { id: string; email: string }) {
   return jwt.sign({ email: user.email }, env.JWT_SECRET, {
     subject: user.id,
@@ -62,21 +91,35 @@ router.post("/login", validate({ body: LoginBody }), async (req, res, next) => {
   }
 });
 
-router.get("/linkedin", async (_req, res, next) => {
+router.get("/linkedin/status", (_req, res) => {
+  const status = getLinkedInConfigStatus();
+  return res.json({
+    ...status,
+    instructions:
+      status.configured
+        ? null
+        : "Add the missing LinkedIn OAuth values to .env, then restart the API and web services before trying again."
+  });
+});
+
+router.get("/linkedin", async (req, res, next) => {
   try {
-    if (!env.LINKEDIN_CLIENT_ID || !env.LINKEDIN_REDIRECT_URI) {
-      return res.status(503).json({
-        error: "LinkedIn OAuth not configured",
-        instructions: "Set LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET, and LINKEDIN_REDIRECT_URI in your .env file. See .env.example for details."
-      });
+    const configStatus = getLinkedInConfigStatus();
+    if (!configStatus.configured) {
+      const redirectUrl = new URL(resolveFrontendReturnUrl(req));
+      redirectUrl.searchParams.set("linkedin", "not-configured");
+      redirectUrl.searchParams.set("missing", configStatus.missing.join(","));
+      return res.redirect(redirectUrl.toString());
     }
+    const clientId = env.LINKEDIN_CLIENT_ID!;
+    const redirectUri = env.LINKEDIN_REDIRECT_URI!;
     const state = Math.random().toString(36).slice(2);
     const params = new URLSearchParams({
       response_type: "code",
-      client_id: env.LINKEDIN_CLIENT_ID,
-      redirect_uri: env.LINKEDIN_REDIRECT_URI,
+      client_id: clientId,
+      redirect_uri: redirectUri,
       state,
-      scope: "r_liteprofile%20r_emailaddress"
+      scope: "r_liteprofile r_emailaddress"
     });
     const url = `https://www.linkedin.com/oauth/v2/authorization?${params.toString()}`;
     return res.redirect(url);
@@ -90,7 +133,9 @@ router.get("/linkedin/callback", async (req, res, next) => {
     const code = typeof req.query["code"] === "string" ? (req.query["code"] as string) : null;
     if (!code) return res.status(400).json({ error: "Missing code" });
     if (!env.LINKEDIN_CLIENT_ID || !env.LINKEDIN_CLIENT_SECRET || !env.LINKEDIN_REDIRECT_URI) {
-      return res.status(500).json({ error: "LinkedIn OAuth not configured" });
+      const redirectUrl = new URL(`${env.FRONTEND_URL}/dashboard/portals`);
+      redirectUrl.searchParams.set("linkedin", "not-configured");
+      return res.redirect(redirectUrl.toString());
     }
 
     const tokenRes = await axios.post(
