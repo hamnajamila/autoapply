@@ -34,6 +34,7 @@ services:
         condition: service_started
     env_file: .env
     environment:
+      NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379
       PORT: 3001
@@ -54,6 +55,7 @@ services:
         condition: service_started
     env_file: .env
     environment:
+      NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379
     command: npm run worker
@@ -67,6 +69,7 @@ services:
         condition: service_started
     env_file: .env
     environment:
+      NODE_ENV: production
       NEXT_PUBLIC_API_URL: http://localhost:3001
       NEXTAUTH_URL: http://localhost:3000
     ports:
