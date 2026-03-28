@@ -21,7 +21,13 @@ router.get("/stats", authenticate, async (req, res, next) => {
       prisma.application.count({ where: { userId, status: "SUBMITTED" } }),
       prisma.application.count({ where: { userId, status: "SUBMITTED", appliedAt: { gte: weekAgo } } }),
       prisma.application.aggregate({ where: { userId }, _avg: { matchScore: true } }),
-      prisma.portalCredential.count({ where: { userId, isActive: true } }),
+      prisma.portalCredential.count({
+        where: {
+          userId,
+          isActive: true,
+          OR: [{ lastError: null }, { lastError: "" }]
+        }
+      }),
       prisma.application.findMany({
         where: { userId },
         include: { job: true },

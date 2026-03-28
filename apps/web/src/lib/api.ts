@@ -1,6 +1,6 @@
 import axios from "axios";
 
-function resolveApiBaseUrl() {
+export function getApiBaseUrl() {
   const configuredUrl = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001";
 
   if (typeof window === "undefined") {
@@ -25,7 +25,7 @@ function resolveApiBaseUrl() {
 }
 
 export const api = axios.create({
-  baseURL: resolveApiBaseUrl(),
+  baseURL: getApiBaseUrl(),
   withCredentials: true
 });
 

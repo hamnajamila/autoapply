@@ -57,23 +57,25 @@ export function Sidebar() {
 
       <div className="mt-auto space-y-3 p-4">
         <Separator className="bg-white/10" />
-        <div className={cn("text-xs text-white/70", collapsed && "hidden")}>Agent</div>
-        <div className="flex items-center justify-between gap-2">
-          <div className={cn("flex items-center gap-2", collapsed && "hidden")}>
-            <div className={cn("h-2 w-2 rounded-full", enabled ? "bg-emerald-400" : "bg-rose-400")} />
-            <div className="text-sm">{enabled ? "Running" : "Paused"}</div>
+        <div className={cn("rounded-xl border border-white/10 bg-white/5 p-3", collapsed && "p-2")}>
+          <div className={cn("text-xs uppercase tracking-[0.2em] text-white/50", collapsed && "hidden")}>Agent</div>
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <div className={cn("flex items-center gap-2", collapsed && "hidden")}>
+              <div className={cn("h-2 w-2 rounded-full", enabled ? "bg-emerald-400" : "bg-rose-400")} />
+              <div className="text-sm font-medium">{enabled ? "Running" : "Paused"}</div>
+            </div>
+            <Button
+              size="sm"
+              className="w-full"
+              variant={enabled ? "secondary" : "default"}
+              onClick={() => (enabled ? pause.mutate() : start.mutate())}
+            >
+              {enabled ? "Pause" : "Start"}
+            </Button>
           </div>
-          <Button
-            size="sm"
-            className="w-full"
-            variant={enabled ? "secondary" : "default"}
-            onClick={() => (enabled ? pause.mutate() : start.mutate())}
-          >
-            {enabled ? "Pause" : "Start"}
-          </Button>
-        </div>
-        <div className={cn("text-xs text-white/60", collapsed && "hidden")}>
-          Last run: {statusQ.data?.lastRun ? new Date(statusQ.data.lastRun).toLocaleString() : "Not available"}
+          <div className={cn("mt-3 text-xs text-white/60", collapsed && "hidden")}>
+            Last run: {statusQ.data?.lastRun ? new Date(statusQ.data.lastRun).toLocaleString() : "Not available"}
+          </div>
         </div>
       </div>
     </aside>

@@ -9,6 +9,39 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 
+function splitSkills(raw: string) {
+  const entries: string[] = [];
+  let current = "";
+  let depth = 0;
+
+  for (const char of raw) {
+    if (char === "(") depth += 1;
+    if (char === ")" && depth > 0) depth -= 1;
+
+    if ((char === "," || char === ";" || char === "\n") && depth === 0) {
+      if (current.trim()) {
+        entries.push(current.trim());
+      }
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current.trim()) {
+    entries.push(current.trim());
+  }
+
+  return Array.from(
+    new Set(
+      entries
+        .map((entry) => entry.replace(/^[A-Za-z/& -]{2,30}:\s*/, "").trim())
+        .filter(Boolean)
+    )
+  ).slice(0, 200);
+}
+
 export default function ProfilePage() {
   const profileQ = useProfile();
   const update = useUpdateProfile();
@@ -33,18 +66,10 @@ export default function ProfilePage() {
     setPhone(initial.phone ?? "");
     setLocation(initial.location ?? "");
     setSummary(initial.summary ?? "");
-    setSkillsText((initial.skills ?? []).join(", "));
+    setSkillsText((initial.skills ?? []).join("\n"));
   }, [initial]);
 
-  const skills = useMemo(
-    () =>
-      skillsText
-        .split(",")
-        .map((skill) => skill.trim())
-        .filter(Boolean)
-        .slice(0, 200),
-    [skillsText]
-  );
+  const skills = useMemo(() => splitSkills(skillsText), [skillsText]);
 
   return (
     <div className="space-y-4">
@@ -113,10 +138,16 @@ export default function ProfilePage() {
           </div>
 
           <div className="space-y-2">
-            <div className="text-xs text-white/60">Skills (comma-separated)</div>
-            <Input className="border-white/10 bg-white/5" value={skillsText} onChange={(e) => setSkillsText(e.target.value)} />
+            <div className="text-xs text-white/60">Skills</div>
+            <Textarea
+              className="min-h-[120px] border-white/10 bg-white/5"
+              value={skillsText}
+              onChange={(e) => setSkillsText(e.target.value)}
+              placeholder="Add one skill per line, or separate skills with commas or semicolons."
+            />
+            <div className="text-xs text-white/50">We automatically clean duplicates and preserve the strongest skill list when you save.</div>
             <div className="flex flex-wrap gap-2">
-              {skills.slice(0, 30).map((skill) => (
+              {skills.slice(0, 40).map((skill) => (
                 <Badge key={skill} variant="outline" className="border-white/10 text-white/70">
                   {skill}
                 </Badge>

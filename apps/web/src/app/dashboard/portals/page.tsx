@@ -1,13 +1,44 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { usePortals, useConnectPortal, useDisconnectPortal, useCreateCustomPortal, useDeleteCustomPortal } from "@/hooks/usePortals";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { getApiBaseUrl } from "@/lib/api";
+
+type PortalRecord = {
+  id?: string;
+  name: string;
+  displayName: string;
+  description: string;
+  connected: boolean;
+  ready?: boolean;
+  status?: "connected" | "needs_attention" | "not_connected" | "custom";
+  lastSynced?: string | null;
+  lastError?: string | null;
+  helpText?: string | null;
+  isCustom?: boolean;
+};
+
+function getPortalBadge(portal: PortalRecord) {
+  if (portal.isCustom) {
+    return { label: "Custom", className: "bg-sky-600/20 text-sky-200" };
+  }
+
+  if (portal.status === "connected") {
+    return { label: "Ready", className: "bg-emerald-600/20 text-emerald-200" };
+  }
+
+  if (portal.status === "needs_attention") {
+    return { label: "Needs attention", className: "bg-amber-600/20 text-amber-100" };
+  }
+
+  return { label: "Not connected", className: "bg-white/10 text-white/70" };
+}
 
 export default function PortalsPage() {
   const portalsQ = usePortals();
@@ -18,6 +49,21 @@ export default function PortalsPage() {
   const [customName, setCustomName] = useState("");
   const [customUrl, setCustomUrl] = useState("");
   const [isAddingCustom, setIsAddingCustom] = useState(false);
+  const [activePortalName, setActivePortalName] = useState<string | null>(null);
+
+  const portals = useMemo(() => {
+    const items = (portalsQ.data?.portals ?? []) as PortalRecord[];
+    return [...items].sort((a, b) => {
+      const rank = (portal: PortalRecord) => {
+        if (portal.status === "needs_attention") return 0;
+        if (portal.status === "connected") return 1;
+        if (portal.isCustom) return 2;
+        return 3;
+      };
+
+      return rank(a) - rank(b) || a.displayName.localeCompare(b.displayName);
+    });
+  }, [portalsQ.data?.portals]);
 
   const handleAddCustom = async () => {
     if (!customName || !customUrl) {
@@ -80,37 +126,47 @@ export default function PortalsPage() {
       {portalsQ.isError ? <div className="text-sm text-rose-300">Failed to load portals. Try refreshing.</div> : null}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {(portalsQ.data?.portals ?? []).map((portal: any) => (
+        {portals.map((portal) => {
+          const badge = getPortalBadge(portal);
+          const isDialogOpen = activePortalName === portal.name;
+
+          return (
           <Card key={portal.name} className="border-white/10 bg-white/5">
             <CardContent className="space-y-3 p-4">
               <div className="flex items-center justify-between">
                 <div className="font-semibold">{portal.displayName}</div>
-                <Badge className={portal.connected ? "bg-emerald-600/20 text-emerald-200" : "bg-white/10 text-white/70"}>
-                  {portal.isCustom ? "Custom" : portal.connected ? "Connected" : "Not connected"}
-                </Badge>
+                <Badge className={badge.className}>{badge.label}</Badge>
               </div>
 
               <div className="text-xs text-white/60">{portal.description}</div>
               <div className="text-xs text-white/60">
                 Last synced: {portal.lastSynced ? new Date(portal.lastSynced).toLocaleString() : "Not available"}
               </div>
-              {portal.lastError ? <div className="text-xs text-rose-300">Last error: {portal.lastError}</div> : null}
+              {portal.lastError ? (
+                <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-xs text-amber-100">
+                  <div className="font-medium">Needs attention</div>
+                  <div className="mt-1">{portal.lastError}</div>
+                  {portal.helpText ? <div className="mt-2 text-amber-100/80">{portal.helpText}</div> : null}
+                </div>
+              ) : null}
 
               <div className="flex gap-2">
                 {portal.name === "linkedin" ? (
                   <Button
                     className="w-full bg-[#6366f1] hover:bg-[#5558e6]"
                     onClick={() => {
-                      window.location.href = `${process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001"}/api/auth/linkedin`;
+                      window.location.href = `${getApiBaseUrl().replace(/\/$/, "")}/api/auth/linkedin`;
                     }}
                   >
-                    {portal.connected ? "Reconnect" : "Connect"}
+                    {portal.status === "connected" ? "Reconnect" : "Connect"}
                   </Button>
                 ) : portal.isCustom ? (
                   <Button
                     className="w-full"
                     variant="destructive"
+                    disabled={!portal.id}
                     onClick={() =>
+                      portal.id &&
                       deleteCustom.mutate(portal.id, {
                         onSuccess: () => toast({ title: "Deleted", description: `${portal.displayName} removed.` }),
                         onError: (err: any) =>
@@ -125,17 +181,21 @@ export default function PortalsPage() {
                     Delete
                   </Button>
                 ) : (
-                  <Dialog>
+                  <Dialog open={isDialogOpen} onOpenChange={(open) => setActivePortalName(open ? portal.name : null)}>
                     <DialogTrigger asChild>
-                      <Button className="w-full" variant="secondary">
-                        {portal.connected ? "Reconnect" : "Connect"}
+                      <Button className="w-full" variant={portal.status === "needs_attention" ? "default" : "secondary"}>
+                        {portal.status === "connected" ? "Reconnect" : portal.status === "needs_attention" ? "Fix connection" : "Connect"}
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="border-white/10 bg-[#0b1224] text-white">
                       <DialogHeader>
                         <DialogTitle>Connect {portal.displayName}</DialogTitle>
+                        <DialogDescription className="text-white/60">
+                          Credentials are encrypted at rest and only used for automation you have enabled.
+                        </DialogDescription>
                       </DialogHeader>
                       <PortalConnectForm
+                        portal={portal}
                         onSave={async (credentials) => {
                           try {
                             const result = await connect.mutateAsync({ portalName: portal.name, credentials });
@@ -143,6 +203,9 @@ export default function PortalsPage() {
                               title: result?.success ? "Connected" : "Saved",
                               description: result?.message ?? "Done"
                             });
+                            if (result?.success) {
+                              setActivePortalName(null);
+                            }
                           } catch (err: any) {
                             toast({
                               title: "Connect failed",
@@ -178,13 +241,19 @@ export default function PortalsPage() {
               </div>
             </CardContent>
           </Card>
-        ))}
+        )})}
       </div>
     </div>
   );
 }
 
-function PortalConnectForm({ onSave }: { onSave: (creds: Record<string, string>) => Promise<void> }) {
+function PortalConnectForm({
+  portal,
+  onSave
+}: {
+  portal: PortalRecord;
+  onSave: (creds: Record<string, string>) => Promise<void>;
+}) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -192,7 +261,12 @@ function PortalConnectForm({ onSave }: { onSave: (creds: Record<string, string>)
 
   return (
     <div className="space-y-3">
-      <div className="text-sm text-white/70">Credentials are encrypted at rest.</div>
+      {portal.lastError ? (
+        <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-100">
+          <div className="font-medium">Current issue</div>
+          <div className="mt-1">{portal.lastError}</div>
+        </div>
+      ) : null}
       <Input className="border-white/10 bg-white/5" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
       <Input
         className="border-white/10 bg-white/5"
@@ -210,9 +284,9 @@ function PortalConnectForm({ onSave }: { onSave: (creds: Record<string, string>)
           setResult(null);
           try {
             await onSave({ email, password });
-            setResult("Saved and tested.");
+            setResult("Credentials saved and verification completed.");
           } catch (err: any) {
-            setResult(err?.message ?? "Failed to connect.");
+            setResult(err?.response?.data?.error ?? err?.message ?? "Failed to connect.");
           } finally {
             setLoading(false);
           }

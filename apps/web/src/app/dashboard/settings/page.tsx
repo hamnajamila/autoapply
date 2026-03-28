@@ -7,9 +7,19 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useProfile, useUpdateProfile } from "@/hooks/useProfile";
 import { useAgentStatus, usePauseAgent, useStartAgent } from "@/hooks/useAgent";
 import { toast } from "@/hooks/use-toast";
+
+const SCHEDULE_OPTIONS = [
+  { label: "Every hour", value: "0 * * * *" },
+  { label: "Every 2 hours", value: "0 */2 * * *" },
+  { label: "Every 6 hours", value: "0 */6 * * *" },
+  { label: "Every 12 hours", value: "0 */12 * * *" },
+  { label: "Daily at midnight", value: "0 0 * * *" },
+  { label: "Custom cron", value: "__custom__" }
+] as const;
 
 export default function SettingsPage() {
   const profileQ = useProfile();
@@ -20,6 +30,7 @@ export default function SettingsPage() {
 
   const [threshold, setThreshold] = useState(70);
   const [schedule, setSchedule] = useState("0 */2 * * *");
+  const [schedulePreset, setSchedulePreset] = useState<string>("0 */2 * * *");
   const [maxPerRun, setMaxPerRun] = useState("20");
   const [blocked, setBlocked] = useState("");
   const [emailNotifications, setEmailNotifications] = useState(true);
@@ -28,7 +39,9 @@ export default function SettingsPage() {
     const u = profileQ.data;
     if (!u) return;
     setThreshold(u.matchThreshold ?? 70);
-    setSchedule(u.agentSchedule ?? "0 */2 * * *");
+    const nextSchedule = u.agentSchedule ?? "0 */2 * * *";
+    setSchedule(nextSchedule);
+    setSchedulePreset(SCHEDULE_OPTIONS.some((option) => option.value === nextSchedule) ? nextSchedule : "__custom__");
     setEmailNotifications(Boolean(u.emailNotifications));
     const prefs = u.preferences ?? {};
     const blockedCompanies = Array.isArray(prefs.blockedCompanies) ? prefs.blockedCompanies : [];
@@ -65,17 +78,43 @@ export default function SettingsPage() {
               </div>
               <div className="w-14 text-right font-semibold">{threshold}</div>
             </div>
+            <div className="text-xs text-white/60">Only jobs at or above this score will be queued for application.</div>
           </div>
 
           <div className="grid md:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <div className="text-xs text-white/60">Schedule (cron)</div>
-              <Input className="bg-white/5 border-white/10" value={schedule} onChange={(e) => setSchedule(e.target.value)} />
-              <div className="text-xs text-white/60">Examples: 0 */2 * * * (every 2 hours)</div>
+              <div className="text-xs text-white/60">Run schedule</div>
+              <Select
+                value={schedulePreset}
+                onValueChange={(value) => {
+                  setSchedulePreset(value);
+                  if (value !== "__custom__") {
+                    setSchedule(value);
+                  }
+                }}
+              >
+                <SelectTrigger className="border-white/10 bg-white/5">
+                  <SelectValue placeholder="Choose a schedule" />
+                </SelectTrigger>
+                <SelectContent className="border-white/10 bg-[#0b1224] text-white">
+                  {SCHEDULE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {schedulePreset === "__custom__" ? (
+                <>
+                  <Input className="bg-white/5 border-white/10" value={schedule} onChange={(e) => setSchedule(e.target.value)} />
+                  <div className="text-xs text-white/60">Cron example: `0 */2 * * *` runs every 2 hours.</div>
+                </>
+              ) : null}
             </div>
             <div className="space-y-1">
               <div className="text-xs text-white/60">Max applications per run</div>
               <Input className="bg-white/5 border-white/10" value={maxPerRun} onChange={(e) => setMaxPerRun(e.target.value)} />
+              <div className="text-xs text-white/60">Keeps each automation cycle controlled and easier to audit.</div>
             </div>
           </div>
         </CardContent>

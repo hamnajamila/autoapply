@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { api } from "@/lib/api";
 
 export default function ApplicationsPage() {
   const [page, setPage] = useState(1);
@@ -30,6 +32,30 @@ export default function ApplicationsPage() {
   const rows = q.data?.data ?? [];
 
   const scoreLabel = useMemo(() => `${minScore}-${maxScore}`, [minScore, maxScore]);
+
+  const handleExport = async () => {
+    const response = await api.get("/api/applications", {
+      params: {
+        format: "csv",
+        page: 1,
+        limit: 200,
+        ...(status !== "all" ? { status } : {}),
+        minScore,
+        maxScore
+      },
+      responseType: "blob"
+    });
+
+    const blob = new Blob([response.data], { type: "text/csv;charset=utf-8;" });
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = href;
+    link.download = "applications.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(href);
+  };
 
   return (
     <div className="space-y-4">
@@ -63,6 +89,10 @@ export default function ApplicationsPage() {
               <div className="text-xs text-white/60">Score range</div>
               <div className="text-xs text-white/70">{scoreLabel}</div>
             </div>
+            <div className="flex items-center justify-between text-[11px] text-white/40">
+              <span>Lower fit</span>
+              <span>Stronger fit</span>
+            </div>
             <Slider
               value={[minScore, maxScore]}
               min={0}
@@ -77,7 +107,14 @@ export default function ApplicationsPage() {
         </CardContent>
       </Card>
 
-      <ApplicationsTable rows={rows} onView={(id) => setSelectedId(id)} />
+      {rows.length ? (
+        <ApplicationsTable rows={rows} onView={(id) => setSelectedId(id)} />
+      ) : (
+        <EmptyState
+          title="No applications yet"
+          description="Once the agent scores jobs or you submit applications, they will appear here with filters, exports, and drill-down details."
+        />
+      )}
 
       <div className="flex items-center justify-between">
         <div className="text-sm text-white/70">
@@ -90,19 +127,7 @@ export default function ApplicationsPage() {
           <Button variant="secondary" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
             Next
           </Button>
-          <Button
-            className="bg-[#6366f1] hover:bg-[#5558e6]"
-            onClick={() => {
-              const url = new URL(`${process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001"}/api/applications`);
-              url.searchParams.set("format", "csv");
-              url.searchParams.set("page", "1");
-              url.searchParams.set("limit", "200");
-              if (status !== "all") url.searchParams.set("status", status);
-              url.searchParams.set("minScore", String(minScore));
-              url.searchParams.set("maxScore", String(maxScore));
-              window.open(url.toString(), "_blank");
-            }}
-          >
+          <Button className="bg-[#6366f1] hover:bg-[#5558e6]" onClick={handleExport}>
             Export CSV
           </Button>
         </div>

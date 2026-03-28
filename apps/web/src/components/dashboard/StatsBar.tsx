@@ -7,7 +7,7 @@ export function StatsBar({ stats }: { stats: any }) {
     { label: "Total Applications Sent", value: stats?.totalApplications ?? 0 },
     { label: "Applied This Week", value: stats?.thisWeek ?? 0 },
     { label: "Average Match Score", value: stats?.avgScore ?? 0 },
-    { label: "Portals Connected", value: stats?.portalsConnected ?? 0 }
+    { label: "Portals Ready", value: stats?.portalsConnected ?? 0 }
   ];
   return (
     <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">

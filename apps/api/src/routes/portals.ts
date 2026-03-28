@@ -24,6 +24,50 @@ const PORTALS_META = [
   { name: "remoteco", displayName: "Remote.co", logoUrl: "https://remote.co/wp-content/themes/remote-co/favicon.png", requiresAuth: false, description: "HTML scrape + apply via browser" }
 ] as const;
 
+function normalizePortalError(rawError: string | null | undefined) {
+  if (!rawError) {
+    return null;
+  }
+
+  const ansiEscapeRegex = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g");
+  const cleaned = rawError
+    .replace(ansiEscapeRegex, "")
+    .replace(/\|/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const lower = cleaned.toLowerCase();
+
+  if (lower.includes("browsertype.launch") || lower.includes("playwright install chromium") || lower.includes("executable doesn't exist")) {
+    return {
+      code: "browser_setup_required",
+      message: "Browser automation needs Playwright Chromium installed in the current runtime.",
+      helpText: "Install the browser runtime once, then reconnect this portal."
+    };
+  }
+
+  if (lower.includes("verification_failed")) {
+    return {
+      code: "verification_failed",
+      message: "Credentials were saved, but the portal could not be verified.",
+      helpText: "Reconnect this portal and confirm the account details are still valid."
+    };
+  }
+
+  if (lower.includes("captcha_required")) {
+    return {
+      code: "captcha_required",
+      message: "A CAPTCHA blocked automation for this portal.",
+      helpText: "Manual intervention is required before automation can continue."
+    };
+  }
+
+  return {
+    code: "connection_issue",
+    message: cleaned.slice(0, 220),
+    helpText: "Reconnect this portal or review the runtime setup."
+  };
+}
+
 router.get("/", authenticate, async (req, res, next) => {
   try {
     const userId = req.auth!.userId;
@@ -34,12 +78,17 @@ router.get("/", authenticate, async (req, res, next) => {
     // Standard portals
     const standardPortals = PORTALS_META.map((p) => {
       const c = byName.get(p.name);
+      const normalizedError = normalizePortalError(c?.lastError);
       return {
         ...p,
         connected: Boolean(c),
+        ready: Boolean(c && !normalizedError),
+        status: !c ? "not_connected" : normalizedError ? "needs_attention" : "connected",
         isActive: c?.isActive ?? false,
         lastSynced: c?.lastSynced ?? null,
-        lastError: c?.lastError ?? null,
+        lastError: normalizedError?.message ?? null,
+        lastErrorCode: normalizedError?.code ?? null,
+        helpText: normalizedError?.helpText ?? null,
         isCustom: false
       };
     });
@@ -53,9 +102,13 @@ router.get("/", authenticate, async (req, res, next) => {
       description: `Custom portal: ${cp.url}`,
       url: cp.url,
       connected: false,
+      ready: false,
+      status: "custom",
       isActive: cp.isActive,
       lastSynced: null,
       lastError: null,
+      lastErrorCode: null,
+      helpText: "Custom portals are tracked here and can be integrated gradually.",
       isCustom: true,
       id: cp.id
     }));
@@ -106,15 +159,11 @@ router.post("/:portalName/connect", authenticate, validate({ body: ConnectBody }
     } catch (e) {
       success = false;
       const rawMessage = e instanceof Error ? e.message : "connection_failed";
-      // Check for Playwright browser installation error
-      if (rawMessage.includes("Executable doesn't exist") || rawMessage.includes("browserType.launch")) {
-        message = "Playwright browsers not installed. Run: npx playwright install chromium";
-      } else {
-        message = rawMessage;
-      }
+      const normalizedError = normalizePortalError(rawMessage);
+      message = normalizedError?.message ?? "Connection failed";
       await prisma.portalCredential.update({
         where: { userId_portalName: { userId, portalName } },
-        data: { lastError: message, lastSynced: new Date() }
+        data: { lastError: normalizedError?.code ?? rawMessage, lastSynced: new Date() }
       });
     } finally {
       await portal.closeBrowser().catch(() => undefined);

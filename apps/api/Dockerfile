@@ -9,6 +9,7 @@ COPY apps/api/package.json ./apps/api/package.json
 COPY packages/shared/package.json ./packages/shared/package.json
 
 RUN npm ci
+RUN npx playwright install --with-deps chromium
 
 COPY packages ./packages
 COPY apps/api ./apps/api
