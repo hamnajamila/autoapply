@@ -17,7 +17,10 @@ type PortalRecord = {
   description: string;
   connected: boolean;
   ready?: boolean;
-  status?: "connected" | "needs_attention" | "not_connected" | "custom";
+  requiresAuth?: boolean;
+  connectionMode?: "oauth" | "credentials" | "none";
+  portalKind?: "source" | "ats";
+  status?: "connected" | "needs_attention" | "not_connected" | "custom" | "available" | "built_in";
   lastSynced?: string | null;
   lastError?: string | null;
   helpText?: string | null;
@@ -27,6 +30,14 @@ type PortalRecord = {
 function getPortalBadge(portal: PortalRecord) {
   if (portal.isCustom) {
     return { label: "Custom", className: "bg-sky-600/20 text-sky-200" };
+  }
+
+  if (portal.status === "available") {
+    return { label: "Available", className: "bg-sky-600/20 text-sky-100" };
+  }
+
+  if (portal.status === "built_in") {
+    return { label: "Built in", className: "bg-violet-600/20 text-violet-100" };
   }
 
   if (portal.status === "connected") {
@@ -52,16 +63,18 @@ export default function PortalsPage() {
   const [activePortalName, setActivePortalName] = useState<string | null>(null);
 
   const portals = useMemo(() => {
-    const items = (portalsQ.data?.portals ?? []) as PortalRecord[];
-    return [...items].sort((a, b) => {
-      const rank = (portal: PortalRecord) => {
-        if (portal.status === "needs_attention") return 0;
-        if (portal.status === "connected") return 1;
-        if (portal.isCustom) return 2;
-        return 3;
-      };
+      const items = (portalsQ.data?.portals ?? []) as PortalRecord[];
+      return [...items].sort((a, b) => {
+        const rank = (portal: PortalRecord) => {
+          if (portal.status === "needs_attention") return 0;
+          if (portal.status === "connected") return 1;
+          if (portal.status === "available") return 2;
+          if (portal.status === "built_in") return 3;
+          if (portal.isCustom) return 4;
+          return 5;
+        };
 
-      return rank(a) - rank(b) || a.displayName.localeCompare(b.displayName);
+        return rank(a) - rank(b) || a.displayName.localeCompare(b.displayName);
     });
   }, [portalsQ.data?.portals]);
 
@@ -151,7 +164,15 @@ export default function PortalsPage() {
               ) : null}
 
               <div className="flex gap-2">
-                {portal.name === "linkedin" ? (
+                {portal.status === "available" ? (
+                  <div className="w-full rounded-md border border-sky-500/20 bg-sky-500/10 px-3 py-2 text-center text-sm text-sky-100">
+                    Available by default
+                  </div>
+                ) : portal.status === "built_in" ? (
+                  <div className="w-full rounded-md border border-violet-500/20 bg-violet-500/10 px-3 py-2 text-center text-sm text-violet-100">
+                    Handled automatically during apply
+                  </div>
+                ) : portal.name === "linkedin" ? (
                   <Button
                     className="w-full bg-[#6366f1] hover:bg-[#5558e6]"
                     onClick={() => {
@@ -219,7 +240,7 @@ export default function PortalsPage() {
                   </Dialog>
                 )}
 
-                {portal.connected && !portal.isCustom ? (
+                {portal.connected && portal.requiresAuth && !portal.isCustom ? (
                   <Button
                     className="w-full"
                     variant="destructive"

@@ -10,18 +10,18 @@ import { PortalRegistry } from "../services/portals/PortalRegistry";
 const router = Router();
 
 const PORTALS_META = [
-  { name: "linkedin", displayName: "LinkedIn", logoUrl: "https://static.licdn.com/sc/h/2if24wp7oqlodqdlgei1n1520", requiresAuth: true, description: "Remote jobs + Easy Apply automation" },
-  { name: "jobright", displayName: "JobRight.ai", logoUrl: "https://jobright.ai/favicon.ico", requiresAuth: true, description: "Playwright session-based portal automation" },
-  { name: "mercor", displayName: "Mercor", logoUrl: "https://mercor.com/favicon.ico", requiresAuth: true, description: "Multi-step application flow support" },
-  { name: "remoteok", displayName: "RemoteOK", logoUrl: "https://remoteok.com/assets/remoteok-48.png", requiresAuth: false, description: "Public API scraping + apply via browser" },
-  { name: "remotive", displayName: "Remotive", logoUrl: "https://remotive.com/favicon-32x32.png", requiresAuth: false, description: "Public API scraping + apply via browser" },
-  { name: "weworkremotely", displayName: "We Work Remotely", logoUrl: "https://weworkremotely.com/assets/favicon-32.png", requiresAuth: false, description: "HTML scrape + apply via browser" },
-  { name: "himalayas", displayName: "Himalayas", logoUrl: "https://himalayas.app/favicon.ico", requiresAuth: false, description: "Public API scraping + apply via browser" },
-  { name: "wellfound", displayName: "Wellfound", logoUrl: "https://wellfound.com/favicon.ico", requiresAuth: true, description: "Playwright auth + application flow" },
-  { name: "greenhouse", displayName: "Greenhouse ATS", logoUrl: "https://boards.greenhouse.io/favicon.ico", requiresAuth: false, description: "Standardized ATS form automation" },
-  { name: "lever", displayName: "Lever ATS", logoUrl: "https://jobs.lever.co/favicon.ico", requiresAuth: false, description: "Standardized ATS form automation" },
-  { name: "workday", displayName: "Workday ATS", logoUrl: "https://www.myworkdayjobs.com/favicon.ico", requiresAuth: false, description: "Complex multi-step ATS support" },
-  { name: "remoteco", displayName: "Remote.co", logoUrl: "https://remote.co/wp-content/themes/remote-co/favicon.png", requiresAuth: false, description: "HTML scrape + apply via browser" }
+  { name: "linkedin", displayName: "LinkedIn", logoUrl: "https://static.licdn.com/sc/h/2if24wp7oqlodqdlgei1n1520", requiresAuth: true, description: "Remote jobs + Easy Apply automation", connectionMode: "oauth", portalKind: "source" },
+  { name: "jobright", displayName: "JobRight.ai", logoUrl: "https://jobright.ai/favicon.ico", requiresAuth: true, description: "Playwright session-based portal automation", connectionMode: "credentials", portalKind: "source" },
+  { name: "mercor", displayName: "Mercor", logoUrl: "https://mercor.com/favicon.ico", requiresAuth: true, description: "Multi-step application flow support", connectionMode: "credentials", portalKind: "source" },
+  { name: "remoteok", displayName: "RemoteOK", logoUrl: "https://remoteok.com/assets/remoteok-48.png", requiresAuth: false, description: "Public API scraping + apply via browser", connectionMode: "none", portalKind: "source" },
+  { name: "remotive", displayName: "Remotive", logoUrl: "https://remotive.com/favicon-32x32.png", requiresAuth: false, description: "Public API scraping + apply via browser", connectionMode: "none", portalKind: "source" },
+  { name: "weworkremotely", displayName: "We Work Remotely", logoUrl: "https://weworkremotely.com/assets/favicon-32.png", requiresAuth: false, description: "HTML scrape + apply via browser", connectionMode: "none", portalKind: "source" },
+  { name: "himalayas", displayName: "Himalayas", logoUrl: "https://himalayas.app/favicon.ico", requiresAuth: false, description: "Public API scraping + apply via browser", connectionMode: "none", portalKind: "source" },
+  { name: "wellfound", displayName: "Wellfound", logoUrl: "https://wellfound.com/favicon.ico", requiresAuth: true, description: "Playwright auth + application flow", connectionMode: "credentials", portalKind: "source" },
+  { name: "greenhouse", displayName: "Greenhouse ATS", logoUrl: "https://boards.greenhouse.io/favicon.ico", requiresAuth: false, description: "Standardized ATS form automation", connectionMode: "none", portalKind: "ats" },
+  { name: "lever", displayName: "Lever ATS", logoUrl: "https://jobs.lever.co/favicon.ico", requiresAuth: false, description: "Standardized ATS form automation", connectionMode: "none", portalKind: "ats" },
+  { name: "workday", displayName: "Workday ATS", logoUrl: "https://www.myworkdayjobs.com/favicon.ico", requiresAuth: false, description: "Complex multi-step ATS support", connectionMode: "none", portalKind: "ats" },
+  { name: "remoteco", displayName: "Remote.co", logoUrl: "https://remote.co/wp-content/themes/remote-co/favicon.png", requiresAuth: false, description: "HTML scrape + apply via browser", connectionMode: "none", portalKind: "source" }
 ] as const;
 
 function normalizePortalError(rawError: string | null | undefined) {
@@ -61,6 +61,14 @@ function normalizePortalError(rawError: string | null | undefined) {
     };
   }
 
+  if (lower.includes("browser_setup_required")) {
+    return {
+      code: "browser_setup_required",
+      message: "Browser automation needs Playwright Chromium installed in the current runtime.",
+      helpText: "Install the browser runtime once, then retry the portal check."
+    };
+  }
+
   return {
     code: "connection_issue",
     message: cleaned.slice(0, 220),
@@ -78,17 +86,24 @@ router.get("/", authenticate, async (req, res, next) => {
     // Standard portals
     const standardPortals = PORTALS_META.map((p) => {
       const c = byName.get(p.name);
-      const normalizedError = normalizePortalError(c?.lastError);
+      const normalizedError = p.requiresAuth ? normalizePortalError(c?.lastError) : null;
+      const status = p.portalKind === "ats" ? "built_in" : p.requiresAuth ? (!c ? "not_connected" : normalizedError ? "needs_attention" : "connected") : "available";
       return {
         ...p,
-        connected: Boolean(c),
-        ready: Boolean(c && !normalizedError),
-        status: !c ? "not_connected" : normalizedError ? "needs_attention" : "connected",
+        connected: p.requiresAuth ? Boolean(c) : false,
+        ready: p.portalKind === "ats" ? true : p.requiresAuth ? Boolean(c && !normalizedError) : true,
+        status,
         isActive: c?.isActive ?? false,
         lastSynced: c?.lastSynced ?? null,
         lastError: normalizedError?.message ?? null,
         lastErrorCode: normalizedError?.code ?? null,
-        helpText: normalizedError?.helpText ?? null,
+        helpText:
+          normalizedError?.helpText ??
+          (p.portalKind === "ats"
+            ? "Handled automatically when an application redirects to this ATS."
+            : p.requiresAuth
+              ? null
+              : "No sign-in required. This source is available to the agent by default."),
         isCustom: false
       };
     });
@@ -128,6 +143,14 @@ router.post("/:portalName/connect", authenticate, validate({ body: ConnectBody }
     const userId = req.auth!.userId;
     const portalName = String(req.params["portalName"] || "").toLowerCase();
     const { credentials } = req.body as z.infer<typeof ConnectBody>;
+    const portalMeta = PORTALS_META.find((portal) => portal.name === portalName);
+    if (!portalMeta) {
+      return res.status(404).json({ error: "Unknown portal" });
+    }
+
+    if (!portalMeta.requiresAuth) {
+      return res.status(400).json({ error: "This portal does not require saved credentials." });
+    }
 
     // ensure portal exists
     const portal = PortalRegistry.get(portalName);

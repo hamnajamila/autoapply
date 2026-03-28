@@ -21,7 +21,17 @@ export class AgentOrchestrator {
       return;
     }
 
-    const activePortalNames = user.portalCredentials.map((c) => c.portalName);
+    const authenticatedPortals = new Set(user.portalCredentials.map((c) => c.portalName));
+    const activePortalNames = PortalRegistry.allPortalNames().filter((portalName) => {
+      const portal = PortalRegistry.get(portalName);
+      const isAtsTarget = ["greenhouse", "lever", "workday"].includes(portal.name);
+      if (isAtsTarget) {
+        return false;
+      }
+
+      return portal.requiresAuth ? authenticatedPortals.has(portalName) : true;
+    });
+
     for (const portalName of activePortalNames) {
       try {
         // Validate portal exists early

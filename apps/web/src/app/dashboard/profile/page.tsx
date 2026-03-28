@@ -42,6 +42,43 @@ function splitSkills(raw: string) {
   ).slice(0, 200);
 }
 
+function normalizeSkillsForEditor(skills: string[] | undefined) {
+  return splitSkills((skills ?? []).join("\n")).join("\n");
+}
+
+function sanitizeLocation(rawValue: string | undefined) {
+  const value = (rawValue ?? "").trim();
+  if (!value) {
+    return "";
+  }
+
+  const lower = value.toLowerCase();
+  const jobTitleWords = ["intern", "engineer", "developer", "analyst", "manager", "designer", "scientist", "specialist"];
+
+  if (value.includes("(") && value.includes(")") && jobTitleWords.some((word) => lower.includes(word))) {
+    const inner = value.match(/\(([^)]+)\)/)?.[1]?.trim();
+    if (inner) {
+      return inner.replace(/-\s*based/gi, " based").replace(/\s+/g, " ").trim();
+    }
+  }
+
+  return value;
+}
+
+function formatResumeLabel(resumeFileUrl: string | null | undefined) {
+  if (!resumeFileUrl) {
+    return "Not available";
+  }
+
+  const filename = String(resumeFileUrl).split(/[\\/]/).pop() ?? "Uploaded resume";
+  if (/^[a-z0-9]{20,}-\d+\.(pdf|docx)$/i.test(filename)) {
+    const extension = filename.split(".").pop()?.toUpperCase() ?? "file";
+    return `Uploaded resume (${extension})`;
+  }
+
+  return filename;
+}
+
 export default function ProfilePage() {
   const profileQ = useProfile();
   const update = useUpdateProfile();
@@ -64,9 +101,9 @@ export default function ProfilePage() {
     setName(initial.name ?? "");
     setEmail(initial.email ?? "");
     setPhone(initial.phone ?? "");
-    setLocation(initial.location ?? "");
+    setLocation(sanitizeLocation(initial.location));
     setSummary(initial.summary ?? "");
-    setSkillsText((initial.skills ?? []).join("\n"));
+    setSkillsText(normalizeSkillsForEditor(initial.skills));
   }, [initial]);
 
   const skills = useMemo(() => splitSkills(skillsText), [skillsText]);
@@ -81,7 +118,7 @@ export default function ProfilePage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="text-sm text-white/70">
-            Current file: {profileQ.data?.resumeFileUrl ? String(profileQ.data.resumeFileUrl).split(/[\\/]/).pop() : "Not available"}
+            Current file: {formatResumeLabel(profileQ.data?.resumeFileUrl)}
           </div>
           <Input
             type="file"
@@ -140,7 +177,7 @@ export default function ProfilePage() {
           <div className="space-y-2">
             <div className="text-xs text-white/60">Skills</div>
             <Textarea
-              className="min-h-[120px] border-white/10 bg-white/5"
+              className="min-h-[180px] border-white/10 bg-white/5"
               value={skillsText}
               onChange={(e) => setSkillsText(e.target.value)}
               placeholder="Add one skill per line, or separate skills with commas or semicolons."

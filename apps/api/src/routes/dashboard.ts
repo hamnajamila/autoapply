@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../config/database";
 import { authenticate } from "../middleware/authenticate";
+import { PortalRegistry } from "../services/portals/PortalRegistry";
 
 const router = Router();
 
@@ -16,6 +17,10 @@ router.get("/stats", authenticate, async (req, res, next) => {
     const now = new Date();
     const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const publicSourcePortals = PortalRegistry.allPortalNames()
+      .map((portalName) => PortalRegistry.get(portalName))
+      .filter((portal) => !portal.requiresAuth && !["greenhouse", "lever", "workday"].includes(portal.name))
+      .length;
 
     const [totalApplications, thisWeekApps, avgScoreAgg, portalsConnected, recentApplications] = await Promise.all([
       prisma.application.count({ where: { userId, status: "SUBMITTED" } }),
@@ -67,7 +72,7 @@ router.get("/stats", authenticate, async (req, res, next) => {
       totalApplications,
       thisWeek: thisWeekApps,
       avgScore: Math.round((avgScoreAgg._avg.matchScore ?? 0) * 10) / 10,
-      portalsConnected,
+      portalsConnected: portalsConnected + publicSourcePortals,
       applicationsByDay: Array.from(byDay.entries()).map(([date, count]) => ({ date, count })),
       applicationsByStatus: byStatus,
       applicationsByPortal: byPortal,
