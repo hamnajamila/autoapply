@@ -38,6 +38,22 @@ function getErrorMessage(err: unknown, fallback: string) {
   return fallback;
 }
 
+function getPortalCredentialHint(portal: PortalRecord) {
+  if (portal.name === "jobright") {
+    return "Use the credentials for your JobRight account. If you normally sign in through Google or Apple, direct password verification may require a dedicated SSO flow.";
+  }
+
+  if (portal.name === "wellfound") {
+    return "Use the credentials for your Wellfound account. Social sign-in only accounts may need a separate connection flow.";
+  }
+
+  if (portal.name === "mercor") {
+    return "Use the credentials for your Mercor account. If Mercor requires Google OAuth or extra verification, the portal may still need manual attention.";
+  }
+
+  return "Use the credentials for this portal account. They are encrypted at rest and only used for automation you have enabled.";
+}
+
 function getPortalBadge(portal: PortalRecord) {
   if (portal.isCustom) {
     return { label: "Custom", className: "bg-sky-600/20 text-sky-200" };
@@ -309,12 +325,12 @@ function PortalsPageContent() {
                       <DialogHeader>
                         <DialogTitle>Connect {portal.displayName}</DialogTitle>
                         <DialogDescription className="text-white/60">
-                          Credentials are encrypted at rest and only used for automation you have enabled.
+                          {getPortalCredentialHint(portal)}
                         </DialogDescription>
                       </DialogHeader>
                       <PortalConnectForm
                         portal={portal}
-                        onSave={async (credentials) => await connect.mutateAsync({ portalName: portal.name, credentials })}
+                        onSave={async (credentials, manualCookies) => await connect.mutateAsync({ portalName: portal.name, credentials, ...(manualCookies ? { manualCookies } : {}) })}
                         onSuccess={(result) => {
                           toast({
                             title: result?.success ? "Connected" : "Verification needs attention",
@@ -371,12 +387,13 @@ function PortalConnectForm({
   onError
 }: {
   portal: PortalRecord;
-  onSave: (creds: Record<string, string>) => Promise<{ success?: boolean; message?: string }>;
+  onSave: (creds: Record<string, string>, manualCookies?: string) => Promise<{ success?: boolean; message?: string }>;
   onSuccess: (result: { success?: boolean; message?: string }) => void;
   onError: (err: unknown) => void;
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [manualCookies, setManualCookies] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
@@ -386,6 +403,9 @@ function PortalConnectForm({
         <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-100">
           <div className="font-medium">Current issue</div>
           <div className="mt-1">{portal.lastError}</div>
+          <div className="mt-2 text-xs text-amber-100/80">
+            If login is completely blocked, you can use a browser extension (like EditThisCookie) to export your session cookies as JSON and paste them below.
+          </div>
         </div>
       ) : null}
       <Input className="border-white/10 bg-white/5" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -396,15 +416,27 @@ function PortalConnectForm({
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
+      {portal.lastError ? (
+        <Input
+          className="border-white/10 bg-white/5 border-dashed"
+          placeholder="Optional: Paste session cookies array [{...}]"
+          type="text"
+          value={manualCookies}
+          onChange={(e) => setManualCookies(e.target.value)}
+        />
+      ) : null}
       {result ? <div className="text-xs text-white/70">{result}</div> : null}
       <Button
         className="w-full"
-        disabled={loading || !email || !password}
+        disabled={loading || (!manualCookies && (!email || !password))}
         onClick={async () => {
           setLoading(true);
           setResult(null);
           try {
-            const response = await onSave({ email, password });
+            const response = await onSave(
+              { email, password },
+              manualCookies ? manualCookies : undefined
+            );
             onSuccess(response);
             setResult(
               response?.success

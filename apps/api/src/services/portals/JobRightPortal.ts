@@ -24,12 +24,46 @@ export class JobRightPortal extends BasePortal {
     const password = credentials["password"] ?? "";
     if (!email || !password) throw new Error("missing_credentials");
 
-    await this.safeGoto("https://jobright.ai/login");
-    await this.randomDelay();
-    await this.page.locator('input[type="email"], input[name="email"]').first().fill(email);
-    await this.page.locator('input[type="password"], input[name="password"]').first().fill(password);
+    await this.safeGoto("https://jobright.ai/");
+    await this.randomDelay(1200, 2200);
+
+    const emailField = this.page.locator('input[type="email"], input[name="email"], input[placeholder="Email"]').first();
+    const passwordField = this.page.locator('input[type="password"], input[name="password"], input[placeholder="Password"]').first();
+    const emailVisible = await emailField.isVisible().catch(() => false);
+
+    if (!emailVisible) {
+      const signInCandidates = this.page.locator("button, a, [role='button']").filter({ hasText: /sign in/i });
+      const candidateCount = await signInCandidates.count();
+      let clicked = false;
+
+      for (let index = 0; index < candidateCount; index += 1) {
+        const candidate = signInCandidates.nth(index);
+        const isVisible = await candidate.isVisible().catch(() => false);
+        if (!isVisible) {
+          continue;
+        }
+
+        await candidate.click().catch(() => undefined);
+        clicked = true;
+        break;
+      }
+
+      if (!clicked) {
+        throw new Error("portal_login_form_unavailable");
+      }
+      await this.randomDelay(800, 1600);
+    }
+
+    await emailField.waitFor({ state: "visible", timeout: 15000 });
+    await passwordField.waitFor({ state: "visible", timeout: 15000 });
+    await emailField.fill(email);
+    await passwordField.fill(password);
     await this.randomDelay(800, 1600);
-    await this.page.locator('button:has-text("Sign in"), button:has-text("Login"), button[type="submit"]').first().click();
+
+    const submitButton = this.page
+      .locator('button:has-text("SIGN IN"), button:has-text("Sign in"), button:has-text("Login"), button[type="submit"]')
+      .last();
+    await submitButton.click();
     await this.page.waitForLoadState("domcontentloaded", { timeout: 30000 }).catch(() => undefined);
   }
 

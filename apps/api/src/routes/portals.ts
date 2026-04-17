@@ -62,6 +62,22 @@ function normalizePortalError(rawError: string | null | undefined) {
     };
   }
 
+  if (lower.includes("portal_login_form_unavailable") || (lower.includes("locator.fill") && lower.includes("timeout"))) {
+    return {
+      code: "login_flow_changed",
+      message: "The portal sign-in form did not load as expected.",
+      helpText: "Reconnect this portal after the site finishes loading. If the portal uses Google, Apple, or another SSO-only flow, direct password login may not work yet."
+    };
+  }
+
+  if (lower.includes("missing_credentials")) {
+    return {
+      code: "missing_credentials",
+      message: "This portal needs both an email and password to verify the connection.",
+      helpText: "Enter the credentials for your account on this portal, not a different service."
+    };
+  }
+
   if (lower.includes("browser_setup_required")) {
     return {
       code: "browser_setup_required",
@@ -140,6 +156,7 @@ router.get("/", authenticate, async (req, res, next) => {
       id: cp.id
     }));
     
+    
     return res.json({ portals: [...standardPortals, ...customPortalData] });
   } catch (err) {
     return next(err);
@@ -147,14 +164,15 @@ router.get("/", authenticate, async (req, res, next) => {
 });
 
 const ConnectBody = z.object({
-  credentials: z.record(z.string(), z.string()).default({})
+  credentials: z.record(z.string(), z.string()).default({}),
+  manualCookies: z.string().optional()
 });
 
 router.post("/:portalName/connect", authenticate, validate({ body: ConnectBody }), async (req, res, next) => {
   try {
     const userId = req.auth!.userId;
     const portalName = String(req.params["portalName"] || "").toLowerCase();
-    const { credentials } = req.body as z.infer<typeof ConnectBody>;
+    const { credentials, manualCookies } = req.body as z.infer<typeof ConnectBody>;
     const portalMeta = PORTALS_META.find((portal) => portal.name === portalName);
     if (!portalMeta) {
       return res.status(404).json({ error: "Unknown portal" });
@@ -178,15 +196,21 @@ router.post("/:portalName/connect", authenticate, validate({ body: ConnectBody }
     let success = true;
     let message = "Connected";
     try {
-      await portal.initBrowser(record.cookiesJson ?? undefined);
+      if (manualCookies) {
+        // Test parsing before using
+        try { JSON.parse(manualCookies); } catch { throw new Error("Invalid cookie JSON format"); }
+      }
+      
+      await portal.initBrowser(manualCookies || record.cookiesJson || undefined);
       if (portal.requiresAuth) {
         const ok = await portal.isLoggedIn().catch(() => false);
-        if (!ok) await portal.login(credentials);
+        if (!ok && !manualCookies) await portal.login(credentials);
       }
       const ok2 = await portal.isLoggedIn().catch(() => false);
       success = ok2;
       message = ok2 ? "Connected and verified" : "Saved credentials, but verification failed";
-      const cookiesJson = await portal.saveCookies().catch(() => record.cookiesJson ?? "[]");
+      
+      const cookiesJson = manualCookies || (await portal.saveCookies().catch(() => record.cookiesJson ?? "[]"));
       await prisma.portalCredential.update({
         where: { userId_portalName: { userId, portalName } },
         data: { cookiesJson, lastSynced: new Date(), lastError: ok2 ? null : "verification_failed" }

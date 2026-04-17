@@ -1,5 +1,5 @@
 import { chromium, type Browser, type BrowserContext } from "playwright";
-import { execSync } from "node:child_process";
+import { access } from "node:fs/promises";
 import { logger } from "../../config/logger";
 
 const USER_AGENTS = [
@@ -30,28 +30,30 @@ export class BrowserManager {
 
   static async verifyBrowsersInstalled(): Promise<void> {
     if (this.verified) return;
+
+    const executablePath = chromium.executablePath();
+
     try {
-      // Try to launch a test browser to verify installation
-      const testBrowser = await chromium.launch({ headless: true });
+      await access(executablePath);
+    } catch {
+      logger.error("Playwright browser executable not found", { executablePath });
+      throw new Error("browser_setup_required");
+    }
+
+    try {
+      const testBrowser = await chromium.launch({
+        headless: true,
+        args: ["--no-sandbox", "--disable-dev-shm-usage"]
+      });
       await testBrowser.close();
       this.verified = true;
-      logger.info("Playwright browsers verified");
+      logger.info("Playwright browsers verified", { executablePath });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("Executable doesn't exist")) {
-        logger.error("Playwright browsers not installed. Attempting auto-install...");
-        try {
-          execSync("npx playwright install chromium", { stdio: "inherit" });
-          this.verified = true;
-          logger.info("Playwright browsers auto-installed successfully");
-        } catch {
-          throw new Error(
-            "Playwright browsers not installed. Please run: npx playwright install chromium"
-          );
-        }
-      } else {
-        throw err;
-      }
+      logger.error("Playwright browser verification failed", {
+        executablePath,
+        error: err instanceof Error ? err.message : String(err)
+      });
+      throw new Error("browser_setup_required");
     }
   }
 
@@ -60,7 +62,8 @@ export class BrowserManager {
     if (this.browser) return this.browser;
     if (!this.launching) {
       this.launching = chromium.launch({
-        headless: true
+        headless: true,
+        args: ["--no-sandbox", "--disable-dev-shm-usage"]
       });
     }
     this.browser = await this.launching;
