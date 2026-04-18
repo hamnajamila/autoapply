@@ -112,40 +112,51 @@ export default function ProfilePage() {
     <div className="space-y-4">
       <div className="text-2xl font-bold">Profile</div>
 
-      <Card className="border-white/10 bg-white/5">
+      <Card className="card-cinematic">
         <CardHeader>
           <CardTitle className="text-base">Resume</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="text-sm text-white/70">
-            Current file: {formatResumeLabel(profileQ.data?.resumeFileUrl)}
-          </div>
-          <Input
-            type="file"
-            accept=".pdf,.docx"
-            className="border-white/10 bg-white/5"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (!file) {
-                return;
-              }
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 p-4">
+            <div className="space-y-1">
+              <div className="text-sm font-medium text-white">Your Resume</div>
+              <div className="text-sm text-white/60">
+                {profileQ.data?.resumeFileUrl ? formatResumeLabel(profileQ.data?.resumeFileUrl) : "No resume uploaded"}
+              </div>
+            </div>
+            <div>
+              <Button variant="outline" className="border-white/10 bg-transparent text-white hover:bg-white/10" onClick={() => document.getElementById("resume-upload")?.click()}>
+                {profileQ.data?.resumeFileUrl ? "Replace Resume" : "Upload File"}
+              </Button>
+              <Input
+                id="resume-upload"
+                type="file"
+                accept=".pdf,.docx"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) {
+                    return;
+                  }
 
-              upload.mutate(file, {
-                onSuccess: () => toast({ title: "Resume uploaded", description: "Profile updated from resume." }),
-                onError: (err: any) =>
-                  toast({
-                    title: "Upload failed",
-                    description: err?.response?.data?.error ?? err?.message ?? "Could not upload resume",
-                    variant: "destructive"
-                  })
-              });
-            }}
-          />
-          {upload.isPending ? <div className="text-sm text-white/70">Uploading and parsing...</div> : null}
+                  upload.mutate(file, {
+                    onSuccess: () => toast({ title: "Resume uploaded", description: "Profile updated from resume." }),
+                    onError: (err: any) =>
+                      toast({
+                        title: "Upload failed",
+                        description: err?.response?.data?.error ?? err?.message ?? "Could not upload resume",
+                        variant: "destructive"
+                      })
+                  });
+                }}
+              />
+            </div>
+          </div>
+          {upload.isPending ? <div className="text-sm text-[#6366f1] animate-pulse">Uploading and parsing...</div> : null}
         </CardContent>
       </Card>
 
-      <Card className="border-white/10 bg-white/5">
+      <Card className="card-cinematic">
         <CardHeader>
           <CardTitle className="text-base">Profile editor</CardTitle>
         </CardHeader>

@@ -23,9 +23,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [router]);
 
   return (
-    <div className="min-h-screen flex">
+    <div className="dashboard-shell flex">
       <Sidebar />
-      <main className="flex-1 p-6 bg-[#0f172a]">
+      <main className="dashboard-main flex-1 px-4 py-6 md:px-6 lg:px-8">
         {children}
         <Toaster />
       </main>

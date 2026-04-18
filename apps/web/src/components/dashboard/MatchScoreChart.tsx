@@ -7,7 +7,7 @@ export function MatchScoreChart({ data }: { data: Array<{ date: string; count: n
   const hasData = data.some((entry) => entry.count > 0);
 
   return (
-    <Card className="bg-white/5 border-white/10">
+    <Card className="card-cinematic">
       <CardHeader>
         <CardTitle className="text-base">Applications per day (14d)</CardTitle>
       </CardHeader>
@@ -15,10 +15,17 @@ export function MatchScoreChart({ data }: { data: Array<{ date: string; count: n
         {hasData ? (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data}>
-              <XAxis dataKey="date" tick={{ fill: "rgba(255,255,255,.6)", fontSize: 10 }} />
-              <YAxis tick={{ fill: "rgba(255,255,255,.6)", fontSize: 10 }} />
-              <Tooltip contentStyle={{ background: "#0b1224", border: "1px solid rgba(255,255,255,.1)", color: "white" }} />
-              <Bar dataKey="count" fill="#6366f1" radius={[6, 6, 0, 0]} />
+              <XAxis dataKey="date" tick={{ fill: "rgba(226,232,240,0.65)", fontSize: 10 }} />
+              <YAxis tick={{ fill: "rgba(226,232,240,0.65)", fontSize: 10 }} />
+              <Tooltip
+                contentStyle={{
+                  background: "#0b1224",
+                  border: "1px solid rgba(148,163,184,0.25)",
+                  color: "white",
+                  borderRadius: 10
+                }}
+              />
+              <Bar dataKey="count" fill="#7c83ff" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         ) : (

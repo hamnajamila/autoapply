@@ -8,15 +8,30 @@ import { mountRoutes } from "./routes";
 import { env } from "./config/env";
 
 function createAllowedOrigins() {
-  const frontendUrl = new URL(env.FRONTEND_URL);
   const localHosts = new Set(["localhost", "127.0.0.1"]);
-  const allowedOrigins = new Set<string>([frontendUrl.origin]);
+  const allowedOrigins = new Set<string>(["http://localhost:3000", "http://127.0.0.1:3000"]);
 
-  if (localHosts.has(frontendUrl.hostname)) {
-    for (const host of localHosts) {
-      allowedOrigins.add(`${frontendUrl.protocol}//${host}${frontendUrl.port ? `:${frontendUrl.port}` : ""}`);
+  const addOrigin = (value?: string) => {
+    if (!value) {
+      return;
     }
-  }
+
+    try {
+      const parsed = new URL(value);
+      allowedOrigins.add(parsed.origin);
+
+      if (localHosts.has(parsed.hostname)) {
+        for (const host of localHosts) {
+          allowedOrigins.add(`${parsed.protocol}//${host}${parsed.port ? `:${parsed.port}` : ""}`);
+        }
+      }
+    } catch {
+      // Ignore malformed values and continue with other origins.
+    }
+  };
+
+  addOrigin(env.FRONTEND_URL);
+  addOrigin(env.NEXTAUTH_URL);
 
   return allowedOrigins;
 }
@@ -33,6 +48,16 @@ export function createApp() {
         if (!origin || allowedOrigins.has(origin)) {
           callback(null, true);
           return;
+        }
+
+        try {
+          const parsedOrigin = new URL(origin);
+          if (env.NODE_ENV !== "production" && ["localhost", "127.0.0.1"].includes(parsedOrigin.hostname)) {
+            callback(null, true);
+            return;
+          }
+        } catch {
+          // Continue to blocked-origin response below.
         }
 
         callback(new Error(`Origin ${origin} is not allowed by CORS`));

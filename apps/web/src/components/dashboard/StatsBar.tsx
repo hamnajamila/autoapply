@@ -12,10 +12,10 @@ export function StatsBar({ stats }: { stats: any }) {
   return (
     <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
       {items.map((i) => (
-        <Card key={i.label} className="bg-white/5 border-white/10">
+        <Card key={i.label} className="card-cinematic">
           <CardContent className="p-4">
-            <div className="text-xs text-white/60">{i.label}</div>
-            <div className="text-2xl font-bold mt-1">{i.value}</div>
+            <div className="text-xs uppercase tracking-[0.08em] text-slate-300/70">{i.label}</div>
+            <div className="mt-1 text-2xl font-bold text-white">{i.value}</div>
           </CardContent>
         </Card>
       ))}

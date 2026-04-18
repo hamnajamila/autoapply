@@ -1,4 +1,4 @@
-import NextAuth from "next-auth";
+import NextAuth, { type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
 import { api } from "./api";
@@ -8,7 +8,8 @@ const CredentialsSchema = z.object({
   password: z.string().min(1)
 });
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+const authConfig: NextAuthConfig = {
+  trustHost: true,
   session: { strategy: "jwt" },
   providers: [
     Credentials({
@@ -51,5 +52,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   pages: {
     signIn: "/login"
   }
-});
+};
+
+if (process.env["NEXTAUTH_SECRET"]) {
+  authConfig.secret = process.env["NEXTAUTH_SECRET"];
+}
+
+export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
 

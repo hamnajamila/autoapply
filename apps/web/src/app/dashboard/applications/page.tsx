@@ -61,7 +61,7 @@ export default function ApplicationsPage() {
     <div className="space-y-4">
       <div className="text-2xl font-bold">Applications</div>
 
-      <Card className="bg-white/5 border-white/10">
+      <Card className="card-cinematic">
         <CardHeader>
           <CardTitle className="text-base">Filters</CardTitle>
         </CardHeader>

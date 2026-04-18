@@ -19,7 +19,10 @@ const Schema = z
     password: z.string().min(8),
     confirmPassword: z.string().min(8)
   })
-  .refine((v) => v.password === v.confirmPassword, { path: ["confirmPassword"], message: "Passwords do not match" });
+  .refine((value) => value.password === value.confirmPassword, {
+    path: ["confirmPassword"],
+    message: "Passwords do not match"
+  });
 
 type FormValues = z.infer<typeof Schema>;
 
@@ -29,6 +32,7 @@ export default function RegisterPage() {
     resolver: zodResolver(Schema),
     defaultValues: { name: "", email: "", password: "", confirmPassword: "" }
   });
+
   const password = form.watch("password");
   const confirmPassword = form.watch("confirmPassword");
 
@@ -41,11 +45,15 @@ export default function RegisterPage() {
 
   const onSubmit = async (values: FormValues) => {
     try {
-      const res = await api.post("/api/auth/register", { name: values.name, email: values.email, password: values.password });
+      const res = await api.post("/api/auth/register", {
+        name: values.name,
+        email: values.email,
+        password: values.password
+      });
       const token = String(res.data?.token ?? "");
       if (!token) throw new Error("Missing token");
       localStorage.setItem("autoapply_token", token);
-      toast({ title: "Registered", description: "Welcome! Let's set up your profile." });
+      toast({ title: "Registered", description: "Welcome. Let's set up your profile." });
       router.replace("/onboarding");
     } catch (err: any) {
       const status = err?.response?.status;
@@ -57,7 +65,7 @@ export default function RegisterPage() {
     }
   };
 
-  const passwordChecks = [
+  const checks = [
     { label: "At least 8 characters", valid: password.length >= 8 },
     { label: "Contains a letter", valid: /[A-Za-z]/.test(password) },
     { label: "Contains a number", valid: /\d/.test(password) },
@@ -65,76 +73,91 @@ export default function RegisterPage() {
   ];
 
   return (
-    <div className="min-h-screen grid place-items-center px-4">
-      <Card className="w-full max-w-md bg-white/5 border-white/10">
-        <CardHeader>
-          <CardTitle className="text-2xl">Create account</CardTitle>
-          <p className="text-sm text-white/60">Create your AutoApply workspace and start automating your job search.</p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <form className="space-y-3" onSubmit={form.handleSubmit(onSubmit)}>
-            <div className="space-y-1">
-              <div className="text-sm text-white/70">Name</div>
-              <Input className="bg-white/5 border-white/10" autoComplete="name" {...form.register("name")} />
-              {form.formState.errors.name?.message ? (
-                <div className="text-xs text-rose-300">{form.formState.errors.name.message}</div>
-              ) : null}
+    <div className="cinematic-auth-shell px-4 py-10">
+      <div className="relative z-10 grid w-full max-w-5xl gap-6 lg:grid-cols-[1fr_1fr]">
+        <Card className="cinematic-panel hidden lg:flex lg:flex-col lg:justify-between">
+          <CardHeader>
+            <CardTitle className="text-3xl font-semibold leading-tight">Build Your AutoApply Command Deck</CardTitle>
+            <p className="mt-2 text-sm text-slate-300/90">
+              One account gives you profile parsing, portal orchestration, and status visibility across every run.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm text-slate-300/90">
+            <div className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 p-4">
+              Secure credential encryption and controlled automation from day one.
             </div>
-            <div className="space-y-1">
-              <div className="text-sm text-white/70">Email</div>
-              <Input className="bg-white/5 border-white/10" autoComplete="email" {...form.register("email")} />
-              {form.formState.errors.email?.message ? (
-                <div className="text-xs text-rose-300">{form.formState.errors.email.message}</div>
-              ) : null}
+            <div className="rounded-xl border border-indigo-300/20 bg-indigo-400/10 p-4">
+              Match scoring and form fill decisions stay field-agnostic across every profession.
             </div>
-            <div className="space-y-1">
-              <div className="text-sm text-white/70">Password</div>
-              <Input className="bg-white/5 border-white/10" autoComplete="new-password" type="password" {...form.register("password")} />
-              {form.formState.errors.password?.message ? (
-                <div className="text-xs text-rose-300">{form.formState.errors.password.message}</div>
-              ) : null}
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm text-white/70">Confirm password</div>
-              <Input
-                className="bg-white/5 border-white/10"
-                autoComplete="new-password"
-                type="password"
-                {...form.register("confirmPassword")}
-              />
-              {form.formState.errors.confirmPassword?.message ? (
-                <div className="text-xs text-rose-300">{form.formState.errors.confirmPassword.message}</div>
-              ) : null}
-            </div>
-            {password ? (
-              <div className="rounded-lg border border-white/10 bg-white/5 p-3 text-xs text-white/70">
-                <div className="mb-2 font-medium text-white/80">Password checks</div>
-                <div className="space-y-1">
-                  {passwordChecks.map((check) => (
-                    <div key={check.label} className={check.valid ? "text-emerald-300" : "text-white/60"}>
-                      {check.valid ? "✓" : "•"} {check.label}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-              {form.formState.isSubmitting ? "Creating..." : "Create account"}
-            </Button>
-            {!form.formState.isValid && form.formState.isSubmitted ? (
-              <div className="text-xs text-rose-300 text-center">Please fix errors above</div>
-            ) : null}
-          </form>
+          </CardContent>
+        </Card>
 
-          <div className="text-sm text-white/70">
-            Already have an account?{" "}
-            <Link className="text-indigo-300 hover:underline" href="/login">
-              Sign in
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+        <Card className="cinematic-panel">
+          <CardHeader>
+            <CardTitle className="text-3xl">Create account</CardTitle>
+            <p className="text-sm text-slate-300/85">Set up your workspace and continue to onboarding.</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <form className="space-y-3" onSubmit={form.handleSubmit(onSubmit)}>
+              <div className="space-y-1">
+                <div className="text-sm text-slate-300">Name</div>
+                <Input className="border-white/15 bg-white/5" autoComplete="name" {...form.register("name")} />
+                {form.formState.errors.name?.message ? <div className="text-xs text-rose-300">{form.formState.errors.name.message}</div> : null}
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm text-slate-300">Email</div>
+                <Input className="border-white/15 bg-white/5" autoComplete="email" {...form.register("email")} />
+                {form.formState.errors.email?.message ? <div className="text-xs text-rose-300">{form.formState.errors.email.message}</div> : null}
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm text-slate-300">Password</div>
+                <Input className="border-white/15 bg-white/5" autoComplete="new-password" type="password" {...form.register("password")} />
+                {form.formState.errors.password?.message ? (
+                  <div className="text-xs text-rose-300">{form.formState.errors.password.message}</div>
+                ) : null}
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm text-slate-300">Confirm password</div>
+                <Input className="border-white/15 bg-white/5" autoComplete="new-password" type="password" {...form.register("confirmPassword")} />
+                {form.formState.errors.confirmPassword?.message ? (
+                  <div className="text-xs text-rose-300">{form.formState.errors.confirmPassword.message}</div>
+                ) : null}
+              </div>
+
+              {password ? (
+                <div className="rounded-lg border border-white/15 bg-white/5 p-3 text-xs text-slate-200">
+                  <div className="mb-2 font-medium text-slate-100">Password checks</div>
+                  <div className="space-y-1">
+                    {checks.map((check) => (
+                      <div key={check.label} className={check.valid ? "text-emerald-300" : "text-slate-300/85"}>
+                        [{check.valid ? "OK" : "  "}] {check.label}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              <Button
+                type="submit"
+                className="w-full bg-gradient-to-r from-indigo-500 to-violet-500 text-white hover:from-indigo-400 hover:to-violet-400"
+                disabled={form.formState.isSubmitting}
+              >
+                {form.formState.isSubmitting ? "Creating..." : "Create account"}
+              </Button>
+              {!form.formState.isValid && form.formState.isSubmitted ? (
+                <div className="text-center text-xs text-rose-300">Please fix the highlighted fields.</div>
+              ) : null}
+            </form>
+
+            <div className="text-sm text-slate-300">
+              Already have an account?{" "}
+              <Link className="font-medium text-indigo-300 hover:text-indigo-200 hover:underline" href="/login">
+                Sign in
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
-

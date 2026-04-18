@@ -20,7 +20,7 @@ function removeWithPowerShell() {
   );
 
   if (result.status !== 0) {
-    throw new Error(`PowerShell cleanup failed with exit code ${result.status ?? "unknown"}`);
+    console.warn(`Skipping .next cleanup because PowerShell removal failed (exit ${result.status ?? "unknown"}).`);
   }
 }
 
@@ -31,5 +31,9 @@ try {
     throw error;
   }
 
-  removeWithPowerShell();
+  try {
+    removeWithPowerShell();
+  } catch {
+    console.warn("Skipping .next cleanup and continuing build.");
+  }
 }

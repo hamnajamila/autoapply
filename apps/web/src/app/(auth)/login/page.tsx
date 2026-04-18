@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 
 const Schema = z.object({
@@ -36,7 +36,10 @@ export default function LoginPage() {
     if (existing) router.replace("/dashboard");
   }, [router]);
 
-  const form = useForm<FormValues>({ resolver: zodResolver(Schema), defaultValues: { email: "", password: "" } });
+  const form = useForm<FormValues>({
+    resolver: zodResolver(Schema),
+    defaultValues: { email: "", password: "" }
+  });
 
   const onSubmit = async (values: FormValues) => {
     try {
@@ -54,51 +57,73 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen grid place-items-center px-4">
-      <Card className="w-full max-w-md bg-white/5 border-white/10">
-        <CardHeader>
-          <CardTitle className="text-2xl">Sign in</CardTitle>
-          <p className="text-sm text-white/60">Access your dashboard, portal connections, and active automation runs.</p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Button
-            className="w-full bg-[#6366f1] hover:bg-[#5558e6]"
-            onClick={() => (window.location.href = `${String(api.defaults.baseURL ?? "").replace(/\/$/, "")}/api/auth/linkedin`)}
-          >
-            Sign in with LinkedIn
-          </Button>
-          <div className="flex items-center gap-3">
-            <Separator className="flex-1 bg-white/10" />
-            <div className="text-xs text-white/60">or</div>
-            <Separator className="flex-1 bg-white/10" />
-          </div>
+    <div className="cinematic-auth-shell px-4 py-10">
+      <div className="relative z-10 grid w-full max-w-5xl gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+        <Card className="cinematic-panel hidden h-full lg:flex lg:flex-col lg:justify-between">
+          <CardHeader>
+            <CardTitle className="text-3xl font-semibold leading-tight">AutoApply Mission Control</CardTitle>
+            <p className="mt-2 text-sm text-slate-300/90">
+              Monitor portals, trigger autonomous runs, and catch instant opportunities before everyone else.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm text-slate-300/90">
+            <div className="rounded-xl border border-indigo-300/20 bg-indigo-400/10 p-4">
+              Live signal: portal checks, match scoring, and apply pipelines in one control surface.
+            </div>
+            <div className="rounded-xl border border-cyan-300/20 bg-cyan-400/10 p-4">
+              Every action is logged, auditable, and recoverable for real-world production reliability.
+            </div>
+          </CardContent>
+        </Card>
 
-          <form className="space-y-3" onSubmit={form.handleSubmit(onSubmit)}>
-            <div className="space-y-1">
-              <div className="text-sm text-white/70">Email</div>
-              <Input className="bg-white/5 border-white/10" autoComplete="email" {...form.register("email")} />
-            </div>
-            <div className="space-y-1">
-              <div className="text-sm text-white/70">Password</div>
-              <Input className="bg-white/5 border-white/10" autoComplete="current-password" type="password" {...form.register("password")} />
-              {form.formState.errors.password?.message ? (
-                <div className="text-xs text-rose-300">{form.formState.errors.password.message}</div>
-              ) : null}
-            </div>
-            <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-              {form.formState.isSubmitting ? "Signing in..." : "Sign in"}
+        <Card className="cinematic-panel">
+          <CardHeader>
+            <CardTitle className="text-3xl">Sign in</CardTitle>
+            <p className="text-sm text-slate-300/85">Enter your credentials to launch your automation workspace.</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button
+              className="w-full border border-indigo-300/30 bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-lg shadow-indigo-900/40 hover:from-indigo-400 hover:to-violet-400"
+              onClick={() => (window.location.href = `${getApiBaseUrl().replace(/\/$/, "")}/api/auth/linkedin`)}
+            >
+              Continue with LinkedIn
             </Button>
-          </form>
+            <div className="flex items-center gap-3">
+              <Separator className="flex-1 bg-white/10" />
+              <div className="text-xs uppercase tracking-[0.14em] text-slate-400">or</div>
+              <Separator className="flex-1 bg-white/10" />
+            </div>
 
-          <div className="text-sm text-white/70">
-            Don&apos;t have an account?{" "}
-            <Link className="text-indigo-300 hover:underline" href="/register">
-              Register
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+            <form className="space-y-3" onSubmit={form.handleSubmit(onSubmit)}>
+              <div className="space-y-1">
+                <div className="text-sm text-slate-300">Email</div>
+                <Input className="border-white/15 bg-white/5" autoComplete="email" {...form.register("email")} />
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm text-slate-300">Password</div>
+                <Input className="border-white/15 bg-white/5" autoComplete="current-password" type="password" {...form.register("password")} />
+                {form.formState.errors.password?.message ? (
+                  <div className="text-xs text-rose-300">{form.formState.errors.password.message}</div>
+                ) : null}
+              </div>
+              <Button
+                type="submit"
+                className="w-full bg-gradient-to-r from-indigo-500 to-violet-500 text-white hover:from-indigo-400 hover:to-violet-400"
+                disabled={form.formState.isSubmitting}
+              >
+                {form.formState.isSubmitting ? "Signing in..." : "Sign in"}
+              </Button>
+            </form>
+
+            <div className="text-sm text-slate-300">
+              Don&apos;t have an account?{" "}
+              <Link className="font-medium text-indigo-300 hover:text-indigo-200 hover:underline" href="/register">
+                Create one
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
-

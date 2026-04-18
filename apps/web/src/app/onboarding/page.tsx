@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { getApiBaseUrl } from "@/lib/api";
 
 function StepIndicator({ step }: { step: number }) {
   const percentage = step === 1 ? 33 : step === 2 ? 66 : 100;
@@ -89,7 +90,7 @@ export default function OnboardingPage() {
       </div>
 
       {step === 1 ? (
-        <Card className="border-white/10 bg-white/5">
+        <Card className="card-cinematic">
           <CardHeader>
             <CardTitle>Step 1 - Upload your resume</CardTitle>
           </CardHeader>
@@ -139,14 +140,14 @@ export default function OnboardingPage() {
       ) : null}
 
       {step === 2 ? (
-        <Card className="border-white/10 bg-white/5">
+        <Card className="card-cinematic">
           <CardHeader>
             <CardTitle>Step 2 - Connect job portals</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {(portalsQ.data?.portals ?? []).map((portal: any) => (
-                <Card key={portal.name} className="border-white/10 bg-white/5">
+                <Card key={portal.name} className="card-cinematic">
                   <CardContent className="space-y-3 p-4">
                     <div className="flex items-center justify-between">
                       <div className="font-semibold">{portal.displayName}</div>
@@ -159,7 +160,7 @@ export default function OnboardingPage() {
                       <Button
                         className="w-full bg-[#6366f1] hover:bg-[#5558e6]"
                         onClick={() => {
-                          window.location.href = `${process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001"}/api/auth/linkedin`;
+                          window.location.href = `${getApiBaseUrl().replace(/\/$/, "")}/api/auth/linkedin`;
                         }}
                       >
                         Connect with LinkedIn
@@ -201,7 +202,7 @@ export default function OnboardingPage() {
       ) : null}
 
       {step === 3 ? (
-        <Card className="border-white/10 bg-white/5">
+        <Card className="card-cinematic">
           <CardHeader>
             <CardTitle>Step 3 - Preferences</CardTitle>
           </CardHeader>

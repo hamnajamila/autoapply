@@ -55,7 +55,7 @@ export default function SettingsPage() {
     <div className="space-y-4">
       <div className="text-2xl font-bold">Settings</div>
 
-      <Card className="bg-white/5 border-white/10">
+      <Card className="card-cinematic">
         <CardHeader>
           <CardTitle className="text-base">Agent settings</CardTitle>
         </CardHeader>
@@ -120,7 +120,7 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card className="bg-white/5 border-white/10">
+      <Card className="card-cinematic">
         <CardHeader>
           <CardTitle className="text-base">Preferences</CardTitle>
         </CardHeader>
@@ -132,7 +132,7 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card className="bg-white/5 border-white/10">
+      <Card className="card-cinematic">
         <CardHeader>
           <CardTitle className="text-base">Notifications</CardTitle>
         </CardHeader>

@@ -201,7 +201,7 @@ function PortalsPageContent() {
         </Button>
       </div>
 
-      <Card className="border-white/10 bg-white/5">
+      <Card className="card-cinematic">
         <CardContent className="grid gap-4 p-4 text-sm text-white/70 md:grid-cols-3">
           <div>
             <div className="font-semibold text-white">Authenticated portals</div>
@@ -219,7 +219,7 @@ function PortalsPageContent() {
       </Card>
 
       {isAddingCustom ? (
-        <Card className="border-white/10 bg-white/5">
+        <Card className="card-cinematic">
           <CardContent className="space-y-3 p-4">
             <div className="font-semibold">Add Custom Job Portal</div>
             <Input
@@ -255,7 +255,7 @@ function PortalsPageContent() {
           const isDialogOpen = activePortalName === portal.name;
 
           return (
-          <Card key={portal.name} className="border-white/10 bg-white/5">
+          <Card key={portal.name} className="card-cinematic">
             <CardContent className="space-y-3 p-4">
               <div className="flex items-center justify-between">
                 <div className="font-semibold">{portal.displayName}</div>

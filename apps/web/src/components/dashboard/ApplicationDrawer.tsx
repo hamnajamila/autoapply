@@ -20,7 +20,7 @@ export function ApplicationDrawer({
   const job = application?.job;
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-xl bg-[#0b1224] border-white/10 text-white overflow-y-auto">
+      <SheetContent className="w-full overflow-y-auto border-white/10 bg-[#0b1224]/95 text-white backdrop-blur-xl sm:max-w-xl">
         <SheetHeader>
           <SheetTitle>{job?.title ?? "Application"}</SheetTitle>
         </SheetHeader>

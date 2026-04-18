@@ -24,6 +24,10 @@ export default function DashboardOverview() {
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-3xl font-semibold tracking-tight text-white">Overview</h1>
+        <p className="text-sm text-slate-300/80">Live mission snapshot for scraping, matching, and application automation.</p>
+      </div>
       <AgentStatusBanner />
       <StatsBar stats={statsQ.data} />
 
