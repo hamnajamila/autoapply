@@ -52,6 +52,10 @@ export function createApp() {
 
         try {
           const parsedOrigin = new URL(origin);
+          if (parsedOrigin.hostname.endsWith("trycloudflare.com")) {
+            callback(null, true);
+            return;
+          }
           if (env.NODE_ENV !== "production" && ["localhost", "127.0.0.1"].includes(parsedOrigin.hostname)) {
             callback(null, true);
             return;

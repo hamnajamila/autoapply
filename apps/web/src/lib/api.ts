@@ -2,9 +2,16 @@ import axios from "axios";
 import { clearStoredAuthToken, getUsableStoredAuthToken } from "./auth-client";
 
 export function getApiBaseUrl() {
-  const configuredUrl = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001";
+  const configuredUrl = process.env["NEXT_PUBLIC_API_URL"] ?? "/api-proxy";
 
   if (typeof window === "undefined") {
+    if (configuredUrl.startsWith("/")) {
+      return process.env["INTERNAL_API_URL"] ?? "http://api:3001";
+    }
+    return configuredUrl;
+  }
+
+  if (configuredUrl.startsWith("/")) {
     return configuredUrl;
   }
 
@@ -34,7 +41,39 @@ function getToken(): string | null {
   return getUsableStoredAuthToken();
 }
 
+function normalizeRequestUrl(url: string, baseUrl: string): string {
+  if (!baseUrl.startsWith("/")) {
+    return url;
+  }
+
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url;
+  }
+
+  if (url.startsWith(`${baseUrl}/`)) {
+    return url;
+  }
+
+  if (url.startsWith("/")) {
+    return `${baseUrl}${url}`;
+  }
+
+  return `${baseUrl}/${url}`;
+}
+
 api.interceptors.request.use((config) => {
+  const dynamicBaseUrl = getApiBaseUrl();
+  const isRelativeProxyBase = dynamicBaseUrl.startsWith("/");
+  if (isRelativeProxyBase) {
+    delete config.baseURL;
+  } else {
+    config.baseURL = dynamicBaseUrl;
+  }
+
+  if (typeof config.url === "string" && isRelativeProxyBase) {
+    config.url = normalizeRequestUrl(config.url, dynamicBaseUrl);
+  }
+
   const token = getToken();
   if (token) {
     config.headers = config.headers ?? {};
