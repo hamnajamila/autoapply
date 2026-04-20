@@ -1,6 +1,7 @@
 import type { UserProfile } from "@autoapply/shared";
 import { BaseLLMClient } from "./LLMClient";
 import { getDefaultLLMClient } from "./providerFactory";
+import keywordExtractor from "keyword-extractor";
 
 export type JobMatchResult = {
   score: number;
@@ -34,34 +35,52 @@ function clamp(n: number, min: number, max: number) {
 }
 
 function normalizeText(s: string) {
-  return s.toLowerCase().replace(/[^a-z0-9+.#/ -]/g, " ").replace(/\s+/g, " ").trim();
+  return s.toLowerCase().replace(/[^a-z0-9+#/ -]/g, " ").replace(/\s+/g, " ").trim();
 }
 
 function heuristicMatch(profile: UserProfile, jobDescription: string, jobTitle: string): JobMatchResult {
   const desc = normalizeText(jobDescription);
   const title = normalizeText(jobTitle);
-  const skills = (profile.skills ?? []).map(normalizeText).filter(Boolean);
+  const userSkillsStr = (profile.skills ?? []).join(" ") + " " + (profile.summary ?? "");
+  
+  // Extract essential keywords from job description (remove stopwords)
+  const requiredKeywords = keywordExtractor.extract(desc, {
+    language: "english",
+    remove_digits: true,
+    return_changed_case: true,
+    remove_duplicates: true
+  });
+  
+  const userKeywords = new Set(
+    keywordExtractor.extract(normalizeText(userSkillsStr), {
+      language: "english",
+      remove_digits: true,
+      return_changed_case: true,
+      remove_duplicates: true
+    })
+  );
 
-  const tokens = new Set(desc.split(" "));
-  const skillHits = skills.filter((sk) => sk && (tokens.has(sk) || desc.includes(sk)));
-  const overlap = skills.length ? skillHits.length / skills.length : 0;
+  const skillHits = requiredKeywords.filter(kw => userKeywords.has(kw) || userSkillsStr.includes(kw));
+  const overlap = requiredKeywords.length ? skillHits.length / requiredKeywords.length : 0;
 
   const senioritySignals = ["senior", "lead", "principal", "head", "director", "manager", "junior", "entry", "intern"];
   const titleSignals = senioritySignals.filter((t) => title.includes(t));
   const descSignals = senioritySignals.filter((t) => desc.includes(t));
-  const seniorityMatch = titleSignals.some((s) => descSignals.includes(s)) ? 1 : 0.6;
+  const seniorityMatch = (!titleSignals.length || titleSignals.some(s => descSignals.includes(s))) ? 1 : 0.6;
 
-  const score = clamp(Math.round(overlap * 70 * seniorityMatch + 20), 0, 100);
+  // Boost for explicit skill match length to represent 0-100 score reasonably
+  const baseScore = overlap > 0.15 ? overlap * 100 * 1.5 : overlap * 100;
+  const score = clamp(Math.round(baseScore * seniorityMatch), 0, 100);
 
   const reasons = [
-    `Skills overlap: ${skillHits.slice(0, 6).join(", ") || "limited overlap detected"}`,
-    `Resume summary: ${profile.summary?.slice(0, 120) || "provided"}`,
-    `Title vs description seniority signals evaluated`
-  ].slice(0, score >= 70 ? 4 : 3);
+    `Local Keyword Match: Found ${skillHits.length} matching terms`,
+    `Key matching terms: ${skillHits.slice(0, 6).join(", ") || "limited overlap detected"}`,
+    `Seniority alignment: ${seniorityMatch === 1 ? "Matched" : "Possible mismatch"}`
+  ];
 
-  const missingSkills = skills.length
-    ? skills.filter((sk) => sk && !desc.includes(sk)).slice(0, 10)
-    : [];
+  const missingSkills = requiredKeywords
+    .filter(kw => !userKeywords.has(kw) && !userSkillsStr.includes(kw))
+    .slice(0, 10);
 
   return {
     score,
@@ -101,4 +120,3 @@ export async function scoreJobMatch(
     return heuristicMatch(userProfile, jobDescription, jobTitle);
   }
 }
-

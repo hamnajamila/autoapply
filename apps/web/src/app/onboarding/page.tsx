@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { getApiBaseUrl } from "@/lib/api";
+import { clearStoredAuthToken, getUsableStoredAuthToken, isTokenUsable, setStoredAuthToken } from "@/lib/auth-client";
 
 function StepIndicator({ step }: { step: number }) {
   const percentage = step === 1 ? 33 : step === 2 ? 66 : 100;
@@ -64,14 +65,15 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     const urlToken = new URLSearchParams(window.location.search).get("token");
-    const token = urlToken || localStorage.getItem("autoapply_token");
+    const token = urlToken && isTokenUsable(urlToken) ? urlToken : getUsableStoredAuthToken();
 
     if (!token) {
+      clearStoredAuthToken();
       router.replace("/login");
       return;
     }
 
-    localStorage.setItem("autoapply_token", token);
+    setStoredAuthToken(token);
     if (urlToken) {
       window.history.replaceState({}, "", "/onboarding");
     }

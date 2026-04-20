@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { api, getApiBaseUrl } from "@/lib/api";
+import { getUsableStoredAuthToken, setStoredAuthToken } from "@/lib/auth-client";
 import { toast } from "@/hooks/use-toast";
 
 const Schema = z.object({
@@ -25,14 +26,14 @@ export default function LoginPage() {
   useEffect(() => {
     const tokenFromOAuth = new URLSearchParams(window.location.search).get("token");
     if (tokenFromOAuth) {
-      localStorage.setItem("autoapply_token", tokenFromOAuth);
+      setStoredAuthToken(tokenFromOAuth);
       window.history.replaceState({}, "", "/login");
       router.replace("/dashboard");
     }
   }, [router]);
 
   useEffect(() => {
-    const existing = localStorage.getItem("autoapply_token");
+    const existing = getUsableStoredAuthToken();
     if (existing) router.replace("/dashboard");
   }, [router]);
 
@@ -46,7 +47,7 @@ export default function LoginPage() {
       const res = await api.post("/api/auth/login", values);
       const token = String(res.data?.token ?? "");
       if (!token) throw new Error("Missing token");
-      localStorage.setItem("autoapply_token", token);
+      setStoredAuthToken(token);
       toast({ title: "Signed in", description: "Welcome back." });
       router.replace("/dashboard");
     } catch (err: any) {
@@ -119,6 +120,12 @@ export default function LoginPage() {
               Don&apos;t have an account?{" "}
               <Link className="font-medium text-indigo-300 hover:text-indigo-200 hover:underline" href="/register">
                 Create one
+              </Link>
+            </div>
+            <div className="text-sm text-slate-300">
+              Forgot your password?{" "}
+              <Link className="font-medium text-indigo-300 hover:text-indigo-200 hover:underline" href="/forgot-password">
+                Reset it here
               </Link>
             </div>
           </CardContent>

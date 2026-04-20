@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
+import { getUsableStoredAuthToken, setStoredAuthToken } from "@/lib/auth-client";
 import { toast } from "@/hooks/use-toast";
 
 const Schema = z
@@ -37,7 +38,7 @@ export default function RegisterPage() {
   const confirmPassword = form.watch("confirmPassword");
 
   useEffect(() => {
-    const existing = localStorage.getItem("autoapply_token");
+    const existing = getUsableStoredAuthToken();
     if (existing) {
       router.replace("/dashboard");
     }
@@ -52,7 +53,7 @@ export default function RegisterPage() {
       });
       const token = String(res.data?.token ?? "");
       if (!token) throw new Error("Missing token");
-      localStorage.setItem("autoapply_token", token);
+      setStoredAuthToken(token);
       toast({ title: "Registered", description: "Welcome. Let's set up your profile." });
       router.replace("/onboarding");
     } catch (err: any) {

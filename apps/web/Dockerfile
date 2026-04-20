@@ -2,6 +2,11 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+ARG NEXT_PUBLIC_API_URL=http://localhost:3001
+ARG NEXTAUTH_URL=http://localhost:3000
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXTAUTH_URL=$NEXTAUTH_URL
+
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY apps/web/package.json ./apps/web/package.json
 COPY packages/shared/package.json ./packages/shared/package.json

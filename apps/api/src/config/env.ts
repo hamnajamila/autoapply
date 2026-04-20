@@ -20,12 +20,13 @@ const EnvSchema = z.object({
   LINKEDIN_CLIENT_SECRET: z.string().optional(),
   LINKEDIN_REDIRECT_URI: z.string().url().optional(),
 
-  LLM_PROVIDER: z.enum(["auto", "ollama", "heuristic", "openai"]).default("auto"),
+  LLM_PROVIDER: z.enum(["auto", "ollama", "heuristic", "openai", "gemini"]).default("auto"),
   OLLAMA_BASE_URL: z.string().url().optional(),
   OLLAMA_MODEL: z.string().default("qwen2.5:7b-instruct"),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default("gpt-4o"),
-
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default("gemini-1.5-flash"),
   RESEND_API_KEY: z.string().optional(),
   FROM_EMAIL: z.string().default("AutoApply <noreply@autoapply.dev>"),
 

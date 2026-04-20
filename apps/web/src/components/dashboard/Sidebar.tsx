@@ -1,30 +1,39 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileText, Globe, User, Settings, PanelLeftClose, PanelLeftOpen, Zap } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { LayoutDashboard, FileText, Globe, User, Settings, PanelLeftClose, PanelLeftOpen, Zap, Wrench, Sparkles, Landmark, BookOpen, Bell, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useUIStore } from "@/store/uiStore";
 import { useAgentStatus, usePauseAgent, useStartAgent } from "@/hooks/useAgent";
+import { useUnreadNotificationCount } from "@/hooks/useNotifications";
+import { clearStoredAuthToken } from "@/lib/auth-client";
 
 const nav = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/dashboard/applications", label: "Applications", icon: FileText },
   { href: "/dashboard/portals", label: "Portals", icon: Globe },
+  { href: "/dashboard/custom-portals", label: "Custom Portals", icon: Wrench },
+  { href: "/dashboard/youth", label: "Youth Opportunities", icon: Sparkles },
+  { href: "/dashboard/gov-jobs", label: "Gov Jobs Pakistan", icon: Landmark },
+  { href: "/dashboard/answer-library", label: "Answer Library", icon: BookOpen },
+  { href: "/dashboard/notifications", label: "Notifications", icon: Bell },
   { href: "/dashboard/profile", label: "Profile", icon: User },
   { href: "/dashboard/settings", label: "Settings", icon: Settings }
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const collapsed = useUIStore((state) => state.sidebarCollapsed);
   const setCollapsed = useUIStore((state) => state.setSidebarCollapsed);
   const statusQ = useAgentStatus();
   const start = useStartAgent();
   const pause = usePauseAgent();
   const enabled = Boolean(statusQ.data?.enabled);
+  const unreadCount = Number(useUnreadNotificationCount().data?.count ?? 0);
 
   return (
     <aside
@@ -59,6 +68,9 @@ export function Sidebar() {
             >
               <Icon className="h-4 w-4" />
               <span className={cn(collapsed && "hidden")}>{item.label}</span>
+              {!collapsed && item.href === "/dashboard/notifications" && unreadCount > 0 ? (
+                <span className="ml-auto rounded-full bg-rose-500 px-2 py-0.5 text-xs text-white">{unreadCount}</span>
+              ) : null}
             </Link>
           );
         })}
@@ -90,6 +102,20 @@ export function Sidebar() {
         <div className={cn("mt-3 text-xs text-slate-400", collapsed && "hidden")}>
           Last run: {statusQ.data?.lastRun ? new Date(statusQ.data.lastRun).toLocaleString() : "Not available"}
         </div>
+      </div>
+
+      <div className="mt-4">
+        <Button
+          variant="ghost"
+          className="w-full justify-start text-slate-300 hover:bg-white/5 hover:text-white"
+          onClick={() => {
+            clearStoredAuthToken();
+            router.replace("/login");
+          }}
+        >
+          <LogOut className="mr-2 h-4 w-4" />
+          <span className={cn(collapsed && "hidden")}>Sign out</span>
+        </Button>
       </div>
     </aside>
   );

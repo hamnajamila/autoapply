@@ -7,6 +7,7 @@ import { redis } from "../config/redis";
 import { logger } from "../config/logger";
 import { PortalRegistry } from "../services/portals/PortalRegistry";
 import { enqueueMatch, type ScrapeJobData } from "./queues";
+import { rankListingsForProfile } from "../services/llm/resumeKeywords";
 
 async function logError(context: string, err: unknown, metadata?: unknown) {
   try {
@@ -89,7 +90,7 @@ export const scrapeWorker = new Worker<ScrapeJobData>(
       }
 
       const profile = user.profileJson as UserProfile | undefined;
-      const listings = await portal.scrapeJobs(profile);
+      const listings = rankListingsForProfile(await portal.scrapeJobs(profile), profile);
       const newJobIds = await upsertJobs(listings);
 
       job.updateProgress(60).catch(() => undefined);

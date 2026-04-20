@@ -21,6 +21,8 @@ export type UserProfile = {
   location?: string | undefined;
   summary: string;
   skills: string[];
+  extractedKeywords?: string[] | undefined;
+  targetJobKeywords?: string[] | undefined;
   experience: UserProfileExperience[];
   education: UserProfileEducation[];
   certifications: string[];

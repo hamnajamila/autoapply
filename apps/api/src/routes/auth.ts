@@ -7,6 +7,7 @@ import { prisma } from "../config/database";
 import { env } from "../config/env";
 import { encrypt } from "@autoapply/shared";
 import { validate } from "../middleware/validate";
+import { EmailService } from "../services/email/EmailService";
 
 const router = Router();
 
@@ -19,6 +20,15 @@ const RegisterBody = z.object({
 const LoginBody = z.object({
   email: z.string().email(),
   password: z.string().min(1)
+});
+
+const ForgotPasswordBody = z.object({
+  email: z.string().email()
+});
+
+const ResetPasswordBody = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8)
 });
 
 function getLinkedInConfigStatus() {
@@ -57,6 +67,13 @@ function signToken(user: { id: string; email: string }) {
   } as jwt.SignOptions);
 }
 
+function signPasswordResetToken(user: { id: string; email: string }) {
+  return jwt.sign({ email: user.email, purpose: "password_reset" }, env.JWT_SECRET, {
+    subject: user.id,
+    expiresIn: "30m"
+  } as jwt.SignOptions);
+}
+
 router.post("/register", validate({ body: RegisterBody }), async (req, res, next) => {
   try {
     const { name, email, password } = req.body as z.infer<typeof RegisterBody>;
@@ -88,6 +105,50 @@ router.post("/login", validate({ body: LoginBody }), async (req, res, next) => {
     });
   } catch (err) {
     return next(err);
+  }
+});
+
+router.post("/forgot-password", validate({ body: ForgotPasswordBody }), async (req, res, next) => {
+  try {
+    const { email } = req.body as z.infer<typeof ForgotPasswordBody>;
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (user) {
+      const token = signPasswordResetToken(user);
+      const resetUrl = `${env.FRONTEND_URL}/reset-password?token=${encodeURIComponent(token)}`;
+      const emailService = new EmailService();
+      await emailService.sendPasswordReset(user.email, user.id, {
+        name: user.name,
+        resetUrl,
+        expiresInMinutes: 30
+      }).catch(() => false);
+    }
+
+    return res.json({
+      success: true,
+      message: "If an account exists for that email, a password reset link has been sent."
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.post("/reset-password", validate({ body: ResetPasswordBody }), async (req, res) => {
+  try {
+    const { token, password } = req.body as z.infer<typeof ResetPasswordBody>;
+    const payload = jwt.verify(token, env.JWT_SECRET) as jwt.JwtPayload;
+    if (payload["purpose"] !== "password_reset" || typeof payload.sub !== "string") {
+      return res.status(400).json({ error: "Invalid or expired reset token" });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    await prisma.user.update({
+      where: { id: payload.sub },
+      data: { passwordHash }
+    });
+
+    return res.json({ success: true, message: "Password updated successfully." });
+  } catch {
+    return res.status(400).json({ error: "Invalid or expired reset token" });
   }
 });
 

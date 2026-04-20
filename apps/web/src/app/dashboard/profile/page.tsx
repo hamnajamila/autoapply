@@ -92,6 +92,7 @@ export default function ProfilePage() {
   const [location, setLocation] = useState("");
   const [summary, setSummary] = useState("");
   const [skillsText, setSkillsText] = useState("");
+  const [targetKeywordsText, setTargetKeywordsText] = useState("");
 
   useEffect(() => {
     if (!initial) {
@@ -104,9 +105,12 @@ export default function ProfilePage() {
     setLocation(sanitizeLocation(initial.location));
     setSummary(initial.summary ?? "");
     setSkillsText(normalizeSkillsForEditor(initial.skills));
+    setTargetKeywordsText(normalizeSkillsForEditor(initial.targetJobKeywords));
   }, [initial]);
 
   const skills = useMemo(() => splitSkills(skillsText), [skillsText]);
+  const targetKeywords = useMemo(() => splitSkills(targetKeywordsText), [targetKeywordsText]);
+  const extractedKeywords = initial?.extractedKeywords ?? [];
 
   return (
     <div className="space-y-4">
@@ -203,6 +207,24 @@ export default function ProfilePage() {
             </div>
           </div>
 
+          <div className="space-y-2">
+            <div className="text-xs text-white/60">Target job keywords extracted from your resume</div>
+            <Textarea
+              className="min-h-[120px] border-white/10 bg-white/5"
+              value={targetKeywordsText}
+              onChange={(e) => setTargetKeywordsText(e.target.value)}
+              placeholder="Refine the search keywords AutoApply should use when prioritizing jobs."
+            />
+            <div className="text-xs text-white/50">These keywords are used to rank scraped jobs so the agent focuses on roles closer to your resume and preferences.</div>
+            <div className="flex flex-wrap gap-2">
+              {extractedKeywords.slice(0, 24).map((keyword: string) => (
+                <Badge key={keyword} className="bg-indigo-500/20 text-indigo-100">
+                  {keyword}
+                </Badge>
+              ))}
+            </div>
+          </div>
+
           <Button
             className="bg-[#6366f1] hover:bg-[#5558e6]"
             disabled={update.isPending}
@@ -215,7 +237,9 @@ export default function ProfilePage() {
                   phone: phone || undefined,
                   location: location || undefined,
                   summary,
-                  skills
+                  skills,
+                  extractedKeywords,
+                  targetJobKeywords: targetKeywords
                 };
                 await update.mutateAsync({ profile: next });
                 toast({ title: "Saved", description: "Profile changes saved." });

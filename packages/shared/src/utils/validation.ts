@@ -23,6 +23,8 @@ export const UserProfileSchema = z.object({
   location: z.string().min(1).optional(),
   summary: z.string().min(1),
   skills: z.array(z.string()).default([]),
+  extractedKeywords: z.array(z.string()).default([]).optional(),
+  targetJobKeywords: z.array(z.string()).default([]).optional(),
   experience: z.array(UserProfileExperienceSchema).default([]),
   education: z.array(UserProfileEducationSchema).default([]),
   certifications: z.array(z.string()).default([]),

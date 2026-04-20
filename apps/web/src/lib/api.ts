@@ -1,4 +1,5 @@
 import axios from "axios";
+import { clearStoredAuthToken, getUsableStoredAuthToken } from "./auth-client";
 
 export function getApiBaseUrl() {
   const configuredUrl = process.env["NEXT_PUBLIC_API_URL"] ?? "http://localhost:3001";
@@ -30,8 +31,7 @@ export const api = axios.create({
 });
 
 function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("autoapply_token");
+  return getUsableStoredAuthToken();
 }
 
 api.interceptors.request.use((config) => {
@@ -48,7 +48,7 @@ api.interceptors.response.use(
   (err) => {
     const status = err?.response?.status;
     if (status === 401 && typeof window !== "undefined") {
-      localStorage.removeItem("autoapply_token");
+      clearStoredAuthToken();
       if (window.location.pathname.startsWith("/dashboard")) {
         window.location.href = "/login";
       }

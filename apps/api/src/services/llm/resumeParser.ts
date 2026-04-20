@@ -2,6 +2,7 @@ import { UserProfileSchema } from "@autoapply/shared";
 import type { UserProfile } from "@autoapply/shared";
 import { BaseLLMClient } from "./LLMClient";
 import { getDefaultLLMClient } from "./providerFactory";
+import { extractRelevantKeywords } from "./resumeKeywords";
 
 const SYSTEM_PROMPT =
   "You are a resume parser. Extract all information from the resume text into \n" +
@@ -15,6 +16,8 @@ function normalize(profile: Record<string, unknown>): UserProfile {
     email: typeof profile["email"] === "string" ? profile["email"] : "",
     summary: typeof profile["summary"] === "string" ? profile["summary"] : "",
     skills: Array.isArray(profile["skills"]) ? profile["skills"] : [],
+    extractedKeywords: Array.isArray(profile["extractedKeywords"]) ? profile["extractedKeywords"] : [],
+    targetJobKeywords: Array.isArray(profile["targetJobKeywords"]) ? profile["targetJobKeywords"] : [],
     experience: Array.isArray(profile["experience"]) ? profile["experience"] : [],
     education: Array.isArray(profile["education"]) ? profile["education"] : [],
     certifications: Array.isArray(profile["certifications"]) ? profile["certifications"] : [],
@@ -30,16 +33,38 @@ function normalize(profile: Record<string, unknown>): UserProfile {
     ...(typeof profile["githubUrl"] === "string" && profile["githubUrl"].trim() ? { githubUrl: profile["githubUrl"] } : {})
   };
 
-  const parsed = UserProfileSchema.safeParse(base);
+  const extractedKeywords = Array.isArray(base.extractedKeywords) && base.extractedKeywords.length
+    ? base.extractedKeywords.filter((keyword): keyword is string => typeof keyword === "string" && keyword.trim().length > 0)
+    : extractRelevantKeywords(
+        [base.summary, ...(base.skills ?? []), ...(base.experience ?? []).map((item: any) => `${item?.title ?? ""} ${item?.company ?? ""}`)].join("\n"),
+        [...(base.skills ?? []).filter((skill): skill is string => typeof skill === "string")]
+      );
+
+  const enrichedBase = {
+    ...base,
+    extractedKeywords,
+    targetJobKeywords:
+      Array.isArray(base.targetJobKeywords) && base.targetJobKeywords.length
+        ? base.targetJobKeywords.filter((keyword): keyword is string => typeof keyword === "string" && keyword.trim().length > 0)
+        : extractedKeywords.slice(0, 20)
+  };
+
+  const parsed = UserProfileSchema.safeParse(enrichedBase);
   if (parsed.success) return parsed.data;
 
   const coerced = {
-    ...base,
-    skills: (base.skills ?? []).filter((skill): skill is string => typeof skill === "string" && skill.trim().length > 0),
-    experience: Array.isArray(base.experience) ? base.experience : [],
-    education: Array.isArray(base.education) ? base.education : [],
-    certifications: Array.isArray(base.certifications) ? base.certifications : [],
-    languages: Array.isArray(base.languages) ? base.languages : []
+    ...enrichedBase,
+    skills: (enrichedBase.skills ?? []).filter((skill): skill is string => typeof skill === "string" && skill.trim().length > 0),
+    extractedKeywords: (enrichedBase.extractedKeywords ?? []).filter(
+      (keyword): keyword is string => typeof keyword === "string" && keyword.trim().length > 0
+    ),
+    targetJobKeywords: (enrichedBase.targetJobKeywords ?? []).filter(
+      (keyword): keyword is string => typeof keyword === "string" && keyword.trim().length > 0
+    ),
+    experience: Array.isArray(enrichedBase.experience) ? enrichedBase.experience : [],
+    education: Array.isArray(enrichedBase.education) ? enrichedBase.education : [],
+    certifications: Array.isArray(enrichedBase.certifications) ? enrichedBase.certifications : [],
+    languages: Array.isArray(enrichedBase.languages) ? enrichedBase.languages : []
   };
 
   return UserProfileSchema.parse(coerced);
@@ -83,6 +108,8 @@ function heuristicParse(text: string): UserProfile {
     ...(location ? { location } : {}),
     summary: lines.slice(0, 6).join(" ").slice(0, 600),
     skills: Array.from(new Set(skills)).slice(0, 100),
+    extractedKeywords: extractRelevantKeywords(text, skills),
+    targetJobKeywords: extractRelevantKeywords(text, skills).slice(0, 20),
     experience: [],
     education: [],
     certifications: [],
@@ -117,6 +144,7 @@ export async function parseResumeText(rawText: string, llm?: BaseLLMClient): Pro
     `Return JSON with this exact shape:\n` +
     `{\n` +
     `  name: string,\n  email: string,\n  phone?: string,\n  location?: string,\n  summary: string,\n  skills: string[],\n` +
+    `  extractedKeywords?: string[],\n  targetJobKeywords?: string[],\n` +
     `  experience: Array<{ company: string, title: string, startDate: string, endDate: string | "Present", description: string, achievements: string[] }>,\n` +
     `  education: Array<{ institution: string, degree: string, field: string, graduationYear: string }>,\n` +
     `  certifications: string[],\n  languages: string[],\n  portfolioUrl?: string,\n  linkedinUrl?: string,\n  githubUrl?: string\n` +

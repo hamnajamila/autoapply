@@ -1,6 +1,7 @@
 import type { BaseLLMClient } from "./LLMClient";
 import { LocalLLMProvider } from "./LocalLLMProvider";
 import { OpenAIProvider } from "./OpenAIProvider";
+import { GeminiProvider } from "./GeminiProvider";
 import { env } from "../../config/env";
 
 function createLocalProvider(): BaseLLMClient | null {
@@ -20,16 +21,28 @@ function createOpenAIProvider(): BaseLLMClient | null {
   }
 }
 
+function createGeminiProvider(): BaseLLMClient | null {
+  if (!env.GEMINI_API_KEY) return null;
+  try {
+    return new GeminiProvider();
+  } catch {
+    return null;
+  }
+}
+
 export function getDefaultLLMClient(): BaseLLMClient | null {
   switch (env.LLM_PROVIDER) {
     case "heuristic":
       return null;
+    case "gemini":
+      return createGeminiProvider();
     case "openai":
       return createOpenAIProvider();
     case "ollama":
       return createLocalProvider();
     case "auto":
     default:
-      return createLocalProvider() ?? createOpenAIProvider();
+      return createGeminiProvider() ?? createOpenAIProvider() ?? createLocalProvider();
   }
 }
+

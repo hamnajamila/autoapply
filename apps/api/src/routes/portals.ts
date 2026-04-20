@@ -7,6 +7,7 @@ import { authenticate } from "../middleware/authenticate";
 import { validate } from "../middleware/validate";
 import { PortalRegistry } from "../services/portals/PortalRegistry";
 import { BrowserManager } from "../services/automation/BrowserManager";
+import { readPreferences } from "../utils/userPreferences";
 
 const router = Router();
 
@@ -96,11 +97,15 @@ function normalizePortalError(rawError: string | null | undefined) {
 router.get("/", authenticate, async (req, res, next) => {
   try {
     const userId = req.auth!.userId;
-    const creds = await prisma.portalCredential.findMany({ where: { userId } });
-    const customPortals = await prisma.customPortal.findMany({ where: { userId, isActive: true } });
+    const [creds, customPortals, user] = await Promise.all([
+      prisma.portalCredential.findMany({ where: { userId } }),
+      prisma.customPortal.findMany({ where: { userId, isActive: true } }),
+      prisma.user.findUnique({ where: { id: userId }, select: { preferences: true } })
+    ]);
     const byName = new Map(creds.map((c) => [c.portalName, c]));
     const needsBrowserRuntimeCheck = creds.some((cred) => cred.lastError === "browser_setup_required");
     const browserRuntimeReady = needsBrowserRuntimeCheck ? await BrowserManager.isBrowserRuntimeReady() : false;
+    const customPortalMeta = readPreferences(readPreferences(user?.preferences)["customPortalMeta"]);
     
     // Standard portals
     const standardPortals = PORTALS_META.map((p) => {
@@ -137,10 +142,12 @@ router.get("/", authenticate, async (req, res, next) => {
     });
     
     // Custom portals
-    const customPortalData = customPortals.map((cp) => ({
+    const customPortalData = customPortals.map((cp) => {
+      const meta = readPreferences(customPortalMeta[cp.id]);
+      return ({
       name: cp.name,
-      displayName: cp.name,
-      logoUrl: `https://${new URL(cp.url).hostname}/favicon.ico`,
+      displayName: meta["displayName"] ?? cp.name,
+      logoUrl: meta["logoUrl"] ?? `https://${new URL(cp.url).hostname}/favicon.ico`,
       requiresAuth: false,
       description: `Custom portal: ${cp.url}`,
       url: cp.url,
@@ -154,7 +161,8 @@ router.get("/", authenticate, async (req, res, next) => {
       helpText: "Custom portals are tracked here and can be integrated gradually.",
       isCustom: true,
       id: cp.id
-    }));
+    });
+    });
     
     
     return res.json({ portals: [...standardPortals, ...customPortalData] });

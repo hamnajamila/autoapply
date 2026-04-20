@@ -11,6 +11,7 @@ import { authenticate } from "../middleware/authenticate";
 import { validate } from "../middleware/validate";
 import { parseResumeText } from "../services/llm/resumeParser";
 import type { UserProfile } from "@autoapply/shared";
+import { extractRelevantKeywords } from "../services/llm/resumeKeywords";
 
 const router = Router();
 
@@ -63,17 +64,26 @@ router.post("/resume", authenticate, upload.single("file"), async (req, res, nex
     }
 
     const profile = await parseResumeText(text);
+    const extractedKeywords = extractRelevantKeywords(text, [...(profile.skills ?? []), ...(profile.targetJobKeywords ?? [])]);
+    const enrichedProfile = {
+      ...profile,
+      extractedKeywords,
+      targetJobKeywords:
+        Array.isArray(profile.targetJobKeywords) && profile.targetJobKeywords.length
+          ? profile.targetJobKeywords
+          : extractedKeywords.slice(0, 20)
+    };
 
     await prisma.user.update({
       where: { id: userId },
       data: {
         resumeText: text,
         resumeFileUrl: file.path,
-        profileJson: profile as any
+        profileJson: enrichedProfile as any
       }
     });
 
-    return res.json({ profile });
+    return res.json({ profile: enrichedProfile, extractedKeywords });
   } catch (err) {
     return next(err);
   }

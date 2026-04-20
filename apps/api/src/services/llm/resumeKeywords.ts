@@ -1,0 +1,145 @@
+import type { JobListing, UserProfile } from "@autoapply/shared";
+
+const STOP_WORDS = new Set([
+  "about",
+  "across",
+  "after",
+  "again",
+  "also",
+  "among",
+  "and",
+  "application",
+  "applying",
+  "apply",
+  "are",
+  "been",
+  "between",
+  "candidate",
+  "company",
+  "currently",
+  "each",
+  "from",
+  "have",
+  "into",
+  "jobs",
+  "more",
+  "need",
+  "only",
+  "other",
+  "over",
+  "professional",
+  "profile",
+  "resume",
+  "role",
+  "roles",
+  "seeking",
+  "skills",
+  "some",
+  "that",
+  "their",
+  "them",
+  "they",
+  "this",
+  "those",
+  "through",
+  "using",
+  "with",
+  "work",
+  "worked",
+  "working",
+  "years",
+  "your"
+]);
+
+function normalizeKeyword(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9+#/. -]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function addKeyword(target: Set<string>, raw: string) {
+  const value = normalizeKeyword(raw);
+  if (!value) return;
+  if (value.length < 2 || value.length > 40) return;
+  if (STOP_WORDS.has(value)) return;
+  if (/^\d+$/.test(value)) return;
+  target.add(value);
+}
+
+export function extractRelevantKeywords(text: string, explicitTerms: string[] = []): string[] {
+  const bucket = new Set<string>();
+
+  for (const term of explicitTerms) {
+    addKeyword(bucket, term);
+  }
+
+  const normalizedText = text.replace(/[|/]/g, ",");
+  const lines = normalizedText.split(/\r?\n/);
+  for (const line of lines) {
+    for (const part of line.split(/[,:;()•\u2022-]/g)) {
+      const trimmed = part.trim();
+      if (!trimmed) continue;
+
+      if (trimmed.includes(" ")) {
+        addKeyword(bucket, trimmed);
+      }
+
+      for (const word of trimmed.split(/\s+/)) {
+        addKeyword(bucket, word);
+      }
+    }
+  }
+
+  return Array.from(bucket).slice(0, 40);
+}
+
+export function getProfileSearchKeywords(profile: UserProfile | null | undefined): string[] {
+  if (!profile) return [];
+
+  const seededTerms = [
+    ...(profile.targetJobKeywords ?? []),
+    ...(profile.extractedKeywords ?? []),
+    ...(profile.skills ?? []),
+    ...(profile.certifications ?? []),
+    ...(profile.languages ?? []),
+    ...(profile.experience ?? []).flatMap((item) => [item.title, item.company, ...item.achievements]),
+    ...(profile.education ?? []).flatMap((item) => [item.degree, item.field, item.institution]),
+    profile.summary ?? ""
+  ];
+
+  return extractRelevantKeywords(seededTerms.join("\n"), seededTerms);
+}
+
+function scoreListingAgainstKeywords(listing: JobListing, keywords: string[]) {
+  if (!keywords.length) return 0;
+
+  const haystack = normalizeKeyword(
+    [listing.title, listing.company, listing.location ?? "", listing.description, ...(listing.tags ?? [])].join(" ")
+  );
+
+  let score = 0;
+  for (const keyword of keywords) {
+    if (!haystack.includes(keyword)) continue;
+    if (listing.title.toLowerCase().includes(keyword)) score += 4;
+    else if ((listing.tags ?? []).some((tag) => normalizeKeyword(tag) === keyword)) score += 3;
+    else score += 1;
+  }
+
+  return score;
+}
+
+export function rankListingsForProfile(listings: JobListing[], profile: UserProfile | null | undefined): JobListing[] {
+  const keywords = getProfileSearchKeywords(profile);
+  if (!keywords.length) return listings;
+
+  const scored = listings.map((listing) => ({
+    listing,
+    score: scoreListingAgainstKeywords(listing, keywords)
+  }));
+
+  const matched = scored
+    .filter((entry) => entry.score > 0)
+    .sort((left, right) => right.score - left.score)
+    .map((entry) => entry.listing);
+
+  // Keep results strictly resume-relevant: never append zero-match listings.
+  return matched;
+}

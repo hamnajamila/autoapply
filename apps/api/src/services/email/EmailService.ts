@@ -36,6 +36,12 @@ type DigestPayload = {
   failedCount: number;
 };
 
+type PasswordResetPayload = {
+  name?: string | null;
+  resetUrl: string;
+  expiresInMinutes: number;
+};
+
 function dashboardUrl() {
   return `${env.FRONTEND_URL}/dashboard`;
 }
@@ -225,6 +231,22 @@ export class EmailService {
 
     const delivery = await deliverEmail(to, subject, html);
     await persistEmailLog(userId, to, subject, "weeklyDigest", delivery.ok, delivery.ok ? undefined : delivery.error);
+    return delivery.ok;
+  }
+
+  async sendPasswordReset(to: string, userId: string, payload: PasswordResetPayload) {
+    const template = await loadTemplate("passwordReset.html");
+    const html = fill(template, {
+      name: escapeHtml(payload.name?.trim() || "there"),
+      resetUrl: payload.resetUrl,
+      expiresInMinutes: String(payload.expiresInMinutes),
+      dashboardUrl: dashboardUrl(),
+      pauseUrl: pauseUrl()
+    });
+    const subject = "AutoApply password reset";
+
+    const delivery = await deliverEmail(to, subject, html);
+    await persistEmailLog(userId, to, subject, "passwordReset", delivery.ok, delivery.ok ? undefined : delivery.error);
     return delivery.ok;
   }
 }
