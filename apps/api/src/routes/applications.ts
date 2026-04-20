@@ -63,6 +63,7 @@ router.get("/", authenticate, validate({ query: ListQuery }), async (req, res, n
 
     const where: any = {
       userId,
+      skipReason: { not: "irrelevant_to_profile" },
       ...(q.minScore != null || q.maxScore != null
         ? { matchScore: { ...(q.minScore != null ? { gte: q.minScore } : {}), ...(q.maxScore != null ? { lte: q.maxScore } : {}) } }
         : {}),

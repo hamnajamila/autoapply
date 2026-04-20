@@ -177,6 +177,41 @@ const ConnectBody = z.object({
   useAutoApplyCredentials: z.boolean().optional()
 });
 
+async function getAutoApplyCredentialSeed(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { preferences: true, email: true }
+  });
+  const prefs = readPreferences(user?.preferences);
+  const seed = readPreferences(prefs["autoApplyCredentialSeed"]);
+  return {
+    email: typeof seed["email"] === "string" ? seed["email"] : user?.email ?? "",
+    encryptedPassword: typeof seed["encryptedPassword"] === "string" ? seed["encryptedPassword"] : ""
+  };
+}
+
+async function persistAutoApplyCredentialSeed(userId: string, email: string, password: string) {
+  if (!email || !password) return;
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { preferences: true }
+  });
+  const prefs = readPreferences(user?.preferences);
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      preferences: {
+        ...prefs,
+        autoApplyCredentialSeed: {
+          email,
+          encryptedPassword: encrypt(password, env.ENCRYPTION_KEY),
+          updatedAt: new Date().toISOString()
+        }
+      } as any
+    }
+  });
+}
+
 router.post("/:portalName/connect", authenticate, validate({ body: ConnectBody }), async (req, res, next) => {
   try {
     const userId = req.auth!.userId;
@@ -196,19 +231,24 @@ router.post("/:portalName/connect", authenticate, validate({ body: ConnectBody }
 
     const finalCredentials = { ...credentials };
     if (useAutoApplyCredentials) {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { preferences: true, email: true }
-      });
-      const autoSeed = readPreferences(readPreferences(user?.preferences)["autoApplyCredentialSeed"]);
-      const seededEmail = typeof autoSeed["email"] === "string" ? autoSeed["email"] : user?.email;
-      const encryptedPassword = typeof autoSeed["encryptedPassword"] === "string" ? autoSeed["encryptedPassword"] : null;
+      const seed = await getAutoApplyCredentialSeed(userId);
+      const seededEmail = seed.email;
+      const encryptedPassword = seed.encryptedPassword || null;
       if (seededEmail) {
         finalCredentials["email"] = seededEmail;
       }
       if (encryptedPassword) {
         finalCredentials["password"] = decrypt(encryptedPassword, env.ENCRYPTION_KEY);
       }
+    }
+    if (!useAutoApplyCredentials && finalCredentials["email"] && finalCredentials["password"]) {
+      await persistAutoApplyCredentialSeed(userId, finalCredentials["email"], finalCredentials["password"]);
+    }
+    if (!finalCredentials["email"] || !finalCredentials["password"]) {
+      return res.status(400).json({
+        error:
+          "Missing credentials. Enter portal email/password once, then you can reuse AutoApply credentials in one click."
+      });
     }
 
     const encryptedData = encrypt(JSON.stringify(finalCredentials), env.ENCRYPTION_KEY);

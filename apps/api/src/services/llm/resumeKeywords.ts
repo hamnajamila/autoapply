@@ -48,7 +48,25 @@ const STOP_WORDS = new Set([
   "worked",
   "working",
   "years",
-  "your"
+  "your",
+  "manager",
+  "senior",
+  "junior",
+  "associate",
+  "specialist",
+  "analyst",
+  "director",
+  "lead",
+  "principal",
+  "operations",
+  "strategy",
+  "support",
+  "coordinator",
+  "executive",
+  "officer",
+  "consultant",
+  "engineer",
+  "developer"
 ]);
 
 function normalizeKeyword(value: string) {
@@ -111,17 +129,42 @@ export function getProfileSearchKeywords(profile: UserProfile | null | undefined
 function scoreListingAgainstKeywords(listing: JobListing, keywords: string[]) {
   if (!keywords.length) return 0;
 
-  const haystack = normalizeKeyword(
-    [listing.title, listing.company, listing.location ?? "", listing.description, ...(listing.tags ?? [])].join(" ")
-  );
+  const title = normalizeKeyword(listing.title);
+  const tags = normalizeKeyword((listing.tags ?? []).join(" "));
+  const description = normalizeKeyword(listing.description ?? "");
+  const company = normalizeKeyword(listing.company ?? "");
+  const haystack = `${title} ${tags} ${description} ${company}`.trim();
 
   let score = 0;
+  let titleOrTagHits = 0;
   for (const keyword of keywords) {
     if (!haystack.includes(keyword)) continue;
-    if (listing.title.toLowerCase().includes(keyword)) score += 4;
-    else if ((listing.tags ?? []).some((tag) => normalizeKeyword(tag) === keyword)) score += 3;
-    else score += 1;
+    const inTitle = title.includes(keyword);
+    const inTags = tags.includes(keyword);
+    const inDescription = description.includes(keyword);
+    const inCompany = company.includes(keyword);
+
+    if (inTitle) {
+      score += 8;
+      titleOrTagHits += 1;
+      continue;
+    }
+    if (inTags) {
+      score += 6;
+      titleOrTagHits += 1;
+      continue;
+    }
+    if (inDescription) {
+      score += 2;
+      continue;
+    }
+    if (inCompany) {
+      score += 1;
+    }
   }
+
+  // Hard gate: must match at least one meaningful keyword in title/tags.
+  if (titleOrTagHits === 0) return 0;
 
   return score;
 }
@@ -169,7 +212,7 @@ export function rankListingsForProfile(listings: JobListing[], profile: UserProf
   }));
 
   const matched = scored
-    .filter((entry) => entry.score > 0)
+    .filter((entry) => entry.score >= 8)
     .sort((left, right) => right.score - left.score)
     .map((entry) => entry.listing);
 

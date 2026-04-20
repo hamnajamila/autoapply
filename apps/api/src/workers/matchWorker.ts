@@ -53,7 +53,7 @@ export const matchWorker = new Worker<MatchJobData>(
         },
         profile
       );
-      if (relevanceScore < 2) {
+      if (relevanceScore < 8) {
         await prisma.application.create({
           data: {
             userId,

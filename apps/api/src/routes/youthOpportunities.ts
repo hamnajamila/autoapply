@@ -65,7 +65,7 @@ router.get("/", authenticate, validate({ query: ListQuery }), async (req, res, n
     const profile = (user?.profileJson ?? {}) as UserProfile;
     const hasProfileKeywords = getProfileSearchKeywords(profile).length > 0;
     const relevantRanked = hasProfileKeywords
-      ? filterRelevantListings(mapped as any, profile, 2).sort((left, right) => {
+      ? filterRelevantListings(mapped as any, profile, 8).sort((left, right) => {
           if (right.relevanceScore !== left.relevanceScore) return right.relevanceScore - left.relevanceScore;
           return new Date((right as any).scrapedAt).getTime() - new Date((left as any).scrapedAt).getTime();
         })
@@ -113,7 +113,7 @@ router.get("/stats", authenticate, async (req, res, next) => {
       .filter((job) => !["nts", "fpsc", "ppsc", "spsc", "bpsc", "kppsc", "pts", "ots"].includes(job.portalName.toLowerCase()));
     const ranked =
       getProfileSearchKeywords(profile).length > 0
-        ? filterRelevantListings(baseJobs as any, profile, 2)
+        ? filterRelevantListings(baseJobs as any, profile, 8)
         : baseJobs.map((item) => ({ ...item, relevanceScore: 0 }));
 
     const counts = ranked.reduce<Record<string, number>>((accumulator, job) => {
