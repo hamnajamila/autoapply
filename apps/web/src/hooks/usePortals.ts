@@ -13,8 +13,17 @@ export function usePortals() {
 export function useConnectPortal() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ portalName, credentials, manualCookies }: { portalName: string; credentials: Record<string, string>; manualCookies?: string }) =>
-      (await api.post(`/api/portals/${portalName}/connect`, { credentials, manualCookies })).data,
+    mutationFn: async ({
+      portalName,
+      credentials,
+      manualCookies,
+      useAutoApplyCredentials
+    }: {
+      portalName: string;
+      credentials: Record<string, string>;
+      manualCookies?: string;
+      useAutoApplyCredentials?: boolean;
+    }) => (await api.post(`/api/portals/${portalName}/connect`, { credentials, manualCookies, useAutoApplyCredentials })).data,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["portals"] });
       qc.invalidateQueries({ queryKey: ["dashboard-stats"] });

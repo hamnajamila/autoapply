@@ -330,7 +330,14 @@ function PortalsPageContent() {
                       </DialogHeader>
                       <PortalConnectForm
                         portal={portal}
-                        onSave={async (credentials, manualCookies) => await connect.mutateAsync({ portalName: portal.name, credentials, ...(manualCookies ? { manualCookies } : {}) })}
+                        onSave={async (credentials, manualCookies, useAutoApplyCredentials) =>
+                          await connect.mutateAsync({
+                            portalName: portal.name,
+                            credentials,
+                            ...(manualCookies ? { manualCookies } : {}),
+                            ...(useAutoApplyCredentials ? { useAutoApplyCredentials } : {})
+                          })
+                        }
                         onSuccess={(result) => {
                           toast({
                             title: result?.success ? "Connected" : "Verification needs attention",
@@ -387,13 +394,18 @@ function PortalConnectForm({
   onError
 }: {
   portal: PortalRecord;
-  onSave: (creds: Record<string, string>, manualCookies?: string) => Promise<{ success?: boolean; message?: string }>;
+  onSave: (
+    creds: Record<string, string>,
+    manualCookies?: string,
+    useAutoApplyCredentials?: boolean
+  ) => Promise<{ success?: boolean; message?: string }>;
   onSuccess: (result: { success?: boolean; message?: string }) => void;
   onError: (err: unknown) => void;
 }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [manualCookies, setManualCookies] = useState("");
+  const [useAutoApplyCredentials, setUseAutoApplyCredentials] = useState(true);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
@@ -416,6 +428,14 @@ function PortalConnectForm({
         value={password}
         onChange={(e) => setPassword(e.target.value)}
       />
+      <label className="flex items-center gap-2 text-xs text-white/80">
+        <input
+          type="checkbox"
+          checked={useAutoApplyCredentials}
+          onChange={(event) => setUseAutoApplyCredentials(event.target.checked)}
+        />
+        Use my AutoApply login email/password
+      </label>
       {portal.lastError ? (
         <Input
           className="border-white/10 bg-white/5 border-dashed"
@@ -428,14 +448,15 @@ function PortalConnectForm({
       {result ? <div className="text-xs text-white/70">{result}</div> : null}
       <Button
         className="w-full"
-        disabled={loading || (!manualCookies && (!email || !password))}
+        disabled={loading || (!manualCookies && !useAutoApplyCredentials && (!email || !password))}
         onClick={async () => {
           setLoading(true);
           setResult(null);
           try {
             const response = await onSave(
               { email, password },
-              manualCookies ? manualCookies : undefined
+              manualCookies ? manualCookies : undefined,
+              useAutoApplyCredentials
             );
             onSuccess(response);
             setResult(

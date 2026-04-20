@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { encrypt } from "@autoapply/shared";
+import { decrypt, encrypt } from "@autoapply/shared";
 import { prisma } from "../config/database";
 import { env } from "../config/env";
 import { authenticate } from "../middleware/authenticate";
@@ -173,14 +173,15 @@ router.get("/", authenticate, async (req, res, next) => {
 
 const ConnectBody = z.object({
   credentials: z.record(z.string(), z.string()).default({}),
-  manualCookies: z.string().optional()
+  manualCookies: z.string().optional(),
+  useAutoApplyCredentials: z.boolean().optional()
 });
 
 router.post("/:portalName/connect", authenticate, validate({ body: ConnectBody }), async (req, res, next) => {
   try {
     const userId = req.auth!.userId;
     const portalName = String(req.params["portalName"] || "").toLowerCase();
-    const { credentials, manualCookies } = req.body as z.infer<typeof ConnectBody>;
+    const { credentials, manualCookies, useAutoApplyCredentials } = req.body as z.infer<typeof ConnectBody>;
     const portalMeta = PORTALS_META.find((portal) => portal.name === portalName);
     if (!portalMeta) {
       return res.status(404).json({ error: "Unknown portal" });
@@ -193,7 +194,24 @@ router.post("/:portalName/connect", authenticate, validate({ body: ConnectBody }
     // ensure portal exists
     const portal = PortalRegistry.get(portalName);
 
-    const encryptedData = encrypt(JSON.stringify(credentials), env.ENCRYPTION_KEY);
+    const finalCredentials = { ...credentials };
+    if (useAutoApplyCredentials) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { preferences: true, email: true }
+      });
+      const autoSeed = readPreferences(readPreferences(user?.preferences)["autoApplyCredentialSeed"]);
+      const seededEmail = typeof autoSeed["email"] === "string" ? autoSeed["email"] : user?.email;
+      const encryptedPassword = typeof autoSeed["encryptedPassword"] === "string" ? autoSeed["encryptedPassword"] : null;
+      if (seededEmail) {
+        finalCredentials["email"] = seededEmail;
+      }
+      if (encryptedPassword) {
+        finalCredentials["password"] = decrypt(encryptedPassword, env.ENCRYPTION_KEY);
+      }
+    }
+
+    const encryptedData = encrypt(JSON.stringify(finalCredentials), env.ENCRYPTION_KEY);
     const record = await prisma.portalCredential.upsert({
       where: { userId_portalName: { userId, portalName } },
       update: { encryptedData, isActive: true, lastError: null },
@@ -213,7 +231,7 @@ router.post("/:portalName/connect", authenticate, validate({ body: ConnectBody }
       await portal.initBrowser(manualCookies || record.cookiesJson || undefined);
       if (portal.requiresAuth) {
         const ok = await portal.isLoggedIn().catch(() => false);
-        if (!ok && !manualCookies) await portal.login(credentials);
+        if (!ok && !manualCookies) await portal.login(finalCredentials);
       }
       const ok2 = await portal.isLoggedIn().catch(() => false);
       success = ok2 || usedManualCookies;

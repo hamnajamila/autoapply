@@ -8,6 +8,7 @@ import { env } from "../config/env";
 import { encrypt } from "@autoapply/shared";
 import { validate } from "../middleware/validate";
 import { EmailService } from "../services/email/EmailService";
+import { readPreferences } from "../utils/userPreferences";
 
 const router = Router();
 
@@ -74,6 +75,27 @@ function signPasswordResetToken(user: { id: string; email: string }) {
   } as jwt.SignOptions);
 }
 
+async function persistAutoApplyCredentialSeed(userId: string, email: string, password: string) {
+  const current = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { preferences: true }
+  });
+  const prefs = readPreferences(current?.preferences);
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      preferences: {
+        ...prefs,
+        autoApplyCredentialSeed: {
+          email,
+          encryptedPassword: encrypt(password, env.ENCRYPTION_KEY),
+          updatedAt: new Date().toISOString()
+        }
+      } as any
+    }
+  });
+}
+
 router.post("/register", validate({ body: RegisterBody }), async (req, res, next) => {
   try {
     const { name, email, password } = req.body as z.infer<typeof RegisterBody>;
@@ -81,6 +103,7 @@ router.post("/register", validate({ body: RegisterBody }), async (req, res, next
     if (existing) return res.status(409).json({ error: "Email already in use" });
     const passwordHash = await bcrypt.hash(password, 12);
     const user = await prisma.user.create({ data: { name, email, passwordHash } });
+    await persistAutoApplyCredentialSeed(user.id, email, password);
     const token = signToken(user);
     return res.status(201).json({
       token,
@@ -98,6 +121,7 @@ router.post("/login", validate({ body: LoginBody }), async (req, res, next) => {
     if (!user?.passwordHash) return res.status(401).json({ error: "Invalid credentials" });
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).json({ error: "Invalid credentials" });
+    await persistAutoApplyCredentialSeed(user.id, email, password);
     const token = signToken(user);
     return res.json({
       token,
