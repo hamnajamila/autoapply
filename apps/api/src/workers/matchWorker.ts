@@ -4,6 +4,7 @@ import { prisma } from "../config/database";
 import { redis } from "../config/redis";
 import { logger } from "../config/logger";
 import { scoreJobMatch } from "../services/llm/jobMatcher";
+import { scoreListingRelevance } from "../services/llm/resumeKeywords";
 import { enqueueApply, type MatchJobData } from "./queues";
 
 async function logError(context: string, err: unknown, metadata?: unknown) {
@@ -42,6 +43,30 @@ export const matchWorker = new Worker<MatchJobData>(
       if (existing) return;
 
       const profile = (user.profileJson ?? {}) as UserProfile;
+      const relevanceScore = scoreListingRelevance(
+        {
+          title: jobRec.title,
+          company: jobRec.company,
+          location: jobRec.location,
+          description: jobRec.description,
+          tags: jobRec.tags
+        },
+        profile
+      );
+      if (relevanceScore < 2) {
+        await prisma.application.create({
+          data: {
+            userId,
+            jobId,
+            matchScore: 0,
+            matchReasons: ["Profile relevance gate rejected this role before LLM scoring."],
+            missingSkills: [],
+            status: "SKIPPED_THRESHOLD",
+            skipReason: "irrelevant_to_profile"
+          }
+        });
+        return;
+      }
       const result = await scoreJobMatch(profile, jobRec.description, jobRec.title);
 
       const app = await prisma.application.create({

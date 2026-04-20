@@ -5,6 +5,8 @@ import { authenticate } from "../middleware/authenticate";
 import { validate } from "../middleware/validate";
 import { enqueueMatch } from "../workers/queues";
 import { getYouthKeywords, readPreferences } from "../utils/userPreferences";
+import { filterRelevantListings, getProfileSearchKeywords } from "../services/llm/resumeKeywords";
+import type { UserProfile } from "@autoapply/shared";
 
 const router = Router();
 
@@ -34,7 +36,7 @@ router.get("/", authenticate, validate({ query: ListQuery }), async (req, res, n
     const q = req.query as unknown as z.infer<typeof ListQuery>;
     const user = await prisma.user.findUnique({
       where: { id: req.auth!.userId },
-      select: { preferences: true }
+      select: { preferences: true, profileJson: true }
     });
     const keywords = getYouthKeywords(user?.preferences);
     const allKeywords = q.keyword ? [q.keyword.toLowerCase(), ...keywords] : keywords;
@@ -57,14 +59,26 @@ router.get("/", authenticate, validate({ query: ListQuery }), async (req, res, n
         ...job,
         type: inferType(job)
       }))
-      .filter((job) => (q.type ? job.type === q.type : true));
+      .filter((job) => (q.type ? job.type === q.type : true))
+      .filter((job) => !["nts", "fpsc", "ppsc", "spsc", "bpsc", "kppsc", "pts", "ots"].includes(job.portalName.toLowerCase()));
+
+    const profile = (user?.profileJson ?? {}) as UserProfile;
+    const hasProfileKeywords = getProfileSearchKeywords(profile).length > 0;
+    const relevantRanked = hasProfileKeywords
+      ? filterRelevantListings(mapped as any, profile, 2).sort((left, right) => {
+          if (right.relevanceScore !== left.relevanceScore) return right.relevanceScore - left.relevanceScore;
+          return new Date((right as any).scrapedAt).getTime() - new Date((left as any).scrapedAt).getTime();
+        })
+      : mapped
+          .sort((left, right) => new Date(right.scrapedAt).getTime() - new Date(left.scrapedAt).getTime())
+          .map((item) => ({ ...item, relevanceScore: 0 }));
 
     const start = (q.page - 1) * q.limit;
-    const data = mapped.slice(start, start + q.limit);
+    const data = relevantRanked.slice(start, start + q.limit);
 
     return res.json({
       data,
-      total: mapped.length,
+      total: relevantRanked.length,
       page: q.page,
       limit: q.limit,
       keywords
@@ -78,7 +92,7 @@ router.get("/stats", authenticate, async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.auth!.userId },
-      select: { preferences: true }
+      select: { preferences: true, profileJson: true }
     });
     const keywords = getYouthKeywords(user?.preferences);
 
@@ -93,14 +107,23 @@ router.get("/stats", authenticate, async (req, res, next) => {
       take: 200
     });
 
-    const counts = jobs.reduce<Record<string, number>>((accumulator, job) => {
-      const type = inferType(job);
+    const profile = (user?.profileJson ?? {}) as UserProfile;
+    const baseJobs = jobs
+      .map((job) => ({ ...job, type: inferType(job) }))
+      .filter((job) => !["nts", "fpsc", "ppsc", "spsc", "bpsc", "kppsc", "pts", "ots"].includes(job.portalName.toLowerCase()));
+    const ranked =
+      getProfileSearchKeywords(profile).length > 0
+        ? filterRelevantListings(baseJobs as any, profile, 2)
+        : baseJobs.map((item) => ({ ...item, relevanceScore: 0 }));
+
+    const counts = ranked.reduce<Record<string, number>>((accumulator, job) => {
+      const type = (job as any).type;
       accumulator[type] = (accumulator[type] ?? 0) + 1;
       return accumulator;
     }, {});
 
     return res.json({
-      total: jobs.length,
+      total: ranked.length,
       internships: counts["internship"] ?? 0,
       fellowships: counts["fellowship"] ?? 0,
       hackathons: counts["hackathon"] ?? 0,

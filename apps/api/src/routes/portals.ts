@@ -204,6 +204,7 @@ router.post("/:portalName/connect", authenticate, validate({ body: ConnectBody }
     let success = true;
     let message = "Connected";
     try {
+      const usedManualCookies = Boolean(manualCookies);
       if (manualCookies) {
         // Test parsing before using
         try { JSON.parse(manualCookies); } catch { throw new Error("Invalid cookie JSON format"); }
@@ -215,13 +216,21 @@ router.post("/:portalName/connect", authenticate, validate({ body: ConnectBody }
         if (!ok && !manualCookies) await portal.login(credentials);
       }
       const ok2 = await portal.isLoggedIn().catch(() => false);
-      success = ok2;
-      message = ok2 ? "Connected and verified" : "Saved credentials, but verification failed";
+      success = ok2 || usedManualCookies;
+      message = ok2
+        ? "Connected and verified"
+        : usedManualCookies
+          ? "Cookies saved. Verification may require a fresh browser session."
+          : "Saved credentials, but verification failed";
       
       const cookiesJson = manualCookies || (await portal.saveCookies().catch(() => record.cookiesJson ?? "[]"));
       await prisma.portalCredential.update({
         where: { userId_portalName: { userId, portalName } },
-        data: { cookiesJson, lastSynced: new Date(), lastError: ok2 ? null : "verification_failed" }
+        data: {
+          cookiesJson,
+          lastSynced: new Date(),
+          lastError: ok2 ? null : usedManualCookies ? null : "verification_failed"
+        }
       });
     } catch (e) {
       success = false;

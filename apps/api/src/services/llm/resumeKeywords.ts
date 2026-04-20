@@ -126,6 +126,39 @@ function scoreListingAgainstKeywords(listing: JobListing, keywords: string[]) {
   return score;
 }
 
+export function scoreListingRelevance(listing: Pick<JobListing, "title" | "company" | "location" | "description" | "tags">, profile: UserProfile | null | undefined): number {
+  const keywords = getProfileSearchKeywords(profile);
+  if (!keywords.length) return 0;
+  return scoreListingAgainstKeywords(
+    {
+      portalName: "relevance",
+      externalId: "relevance",
+      title: listing.title,
+      company: listing.company,
+      location: listing.location ?? "Remote",
+      description: listing.description,
+      applyUrl: "",
+      tags: listing.tags ?? [],
+      isRemote: true
+    },
+    keywords
+  );
+}
+
+export function filterRelevantListings<T extends Pick<JobListing, "title" | "company" | "location" | "description" | "tags">>(
+  listings: T[],
+  profile: UserProfile | null | undefined,
+  minScore = 1
+): Array<T & { relevanceScore: number }> {
+  return listings
+    .map((listing) => ({
+      ...listing,
+      relevanceScore: scoreListingRelevance(listing, profile)
+    }))
+    .filter((listing) => listing.relevanceScore >= minScore)
+    .sort((left, right) => right.relevanceScore - left.relevanceScore);
+}
+
 export function rankListingsForProfile(listings: JobListing[], profile: UserProfile | null | undefined): JobListing[] {
   const keywords = getProfileSearchKeywords(profile);
   if (!keywords.length) return listings;

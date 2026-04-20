@@ -4,6 +4,7 @@ import { prisma } from "../config/database";
 import { authenticate } from "../middleware/authenticate";
 import { validate } from "../middleware/validate";
 import { readPreferences } from "../utils/userPreferences";
+import { scrapeAndStoreGovJobs } from "../services/govJobs/basicGovScraper";
 
 const router = Router();
 
@@ -25,52 +26,29 @@ const AlertBody = z.object({
   }).optional()
 });
 
-const GOV_KEYWORDS = [
-  "government",
-  "govt",
-  "public sector",
-  "ministry",
-  "department",
-  "federal",
-  "provincial",
-  "nts",
-  "fpsc",
-  "ppsc",
-  "spsc",
-  "bpsc",
-  "kppsc",
-  "pts",
-  "ots",
-  "rozee",
-  "dawn jobs",
-  "express jobs",
-  "mustakbil",
-  "pakistan"
-];
-
-function matchesGovernmentKeywords(text: string) {
-  const normalized = text.toLowerCase();
-  return GOV_KEYWORDS.some((keyword) => normalized.includes(keyword));
-}
+const GOV_PORTALS = ["nts", "fpsc", "ppsc", "spsc", "bpsc", "kppsc", "pts", "ots", "rozee", "dawn", "express", "mustakbil"];
 
 router.get("/", authenticate, validate({ query: ListQuery }), async (req, res, next) => {
   try {
     const q = req.query as unknown as z.infer<typeof ListQuery>;
     const jobs = await prisma.job.findMany({
       where: {
-        OR: [
-          { title: { contains: q.keyword ?? "", mode: "insensitive" } },
-          { company: { contains: q.keyword ?? "", mode: "insensitive" } },
-          { description: { contains: q.keyword ?? "", mode: "insensitive" } }
-        ]
+        portalName: { in: GOV_PORTALS },
+        ...(q.keyword
+          ? {
+              OR: [
+                { title: { contains: q.keyword, mode: "insensitive" } },
+                { company: { contains: q.keyword, mode: "insensitive" } },
+                { description: { contains: q.keyword, mode: "insensitive" } }
+              ]
+            }
+          : {})
       },
       orderBy: { scrapedAt: "desc" },
       take: 200
     });
 
-    const filtered = jobs
-      .filter((job) => matchesGovernmentKeywords([job.title, job.company, job.description, ...(job.tags ?? [])].join(" ")))
-      .filter((job) => (q.source ? job.portalName === q.source : true));
+    const filtered = jobs.filter((job) => (q.source ? job.portalName === q.source : true));
 
     const user = await prisma.user.findUnique({ where: { id: req.auth!.userId }, select: { preferences: true } });
     const prefs = readPreferences(user?.preferences);
@@ -93,8 +71,11 @@ router.get("/", authenticate, validate({ query: ListQuery }), async (req, res, n
 
 router.get("/stats", authenticate, async (_req, res, next) => {
   try {
-    const jobs = await prisma.job.findMany({ take: 300, orderBy: { scrapedAt: "desc" } });
-    const govJobs = jobs.filter((job) => matchesGovernmentKeywords([job.title, job.company, job.description, ...(job.tags ?? [])].join(" ")));
+    const govJobs = await prisma.job.findMany({
+      where: { portalName: { in: GOV_PORTALS } },
+      take: 500,
+      orderBy: { scrapedAt: "desc" }
+    });
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const byPortal = govJobs.reduce<Record<string, number>>((accumulator, job) => {
@@ -158,9 +139,11 @@ router.put("/:id/status", authenticate, async (req, res, next) => {
 });
 
 router.post("/scrape-now", authenticate, async (_req, res) => {
+  const result = await scrapeAndStoreGovJobs();
   return res.json({
     success: true,
-    message: "Government job sources were re-scanned against the currently stored listings."
+    inserted: result.inserted,
+    message: "Government job sources were scraped and stored."
   });
 });
 
