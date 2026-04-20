@@ -2,7 +2,14 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { toast } from "@/hooks/use-toast";
-import { usePortals, useConnectPortal, useDisconnectPortal, useCreateCustomPortal, useDeleteCustomPortal } from "@/hooks/usePortals";
+import {
+  usePortals,
+  useConnectPortal,
+  useDisconnectPortal,
+  useCreateCustomPortal,
+  useDeleteCustomPortal,
+  useCapturePortalCookies
+} from "@/hooks/usePortals";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -94,6 +101,7 @@ function PortalsPageContent() {
   const disconnect = useDisconnectPortal();
   const createCustom = useCreateCustomPortal();
   const deleteCustom = useDeleteCustomPortal();
+  const captureCookies = useCapturePortalCookies();
   const [customName, setCustomName] = useState("");
   const [customUrl, setCustomUrl] = useState("");
   const [isAddingCustom, setIsAddingCustom] = useState(false);
@@ -354,6 +362,7 @@ function PortalsPageContent() {
                             variant: "destructive"
                           });
                         }}
+                        onCaptureCookies={async () => await captureCookies.mutateAsync(portal.name)}
                       />
                     </DialogContent>
                   </Dialog>
@@ -390,6 +399,7 @@ function PortalsPageContent() {
 function PortalConnectForm({
   portal,
   onSave,
+  onCaptureCookies,
   onSuccess,
   onError
 }: {
@@ -399,6 +409,7 @@ function PortalConnectForm({
     manualCookies?: string,
     useAutoApplyCredentials?: boolean
   ) => Promise<{ success?: boolean; message?: string }>;
+  onCaptureCookies: () => Promise<{ success?: boolean; message?: string }>;
   onSuccess: (result: { success?: boolean; message?: string }) => void;
   onError: (err: unknown) => void;
 }) {
@@ -407,6 +418,7 @@ function PortalConnectForm({
   const [manualCookies, setManualCookies] = useState("");
   const [useAutoApplyCredentials, setUseAutoApplyCredentials] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [capturingCookies, setCapturingCookies] = useState(false);
   const [result, setResult] = useState<string | null>(null);
 
   return (
@@ -436,6 +448,27 @@ function PortalConnectForm({
         />
         Use my AutoApply login email/password
       </label>
+      {(portal.name === "mercor" || portal.name === "jobright" || portal.name === "wellfound" || portal.name === "linkedin") ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full border-white/20 bg-white/5 text-white hover:bg-white/10"
+          disabled={capturingCookies}
+          onClick={async () => {
+            setCapturingCookies(true);
+            try {
+              const response = await onCaptureCookies();
+              setResult(response?.message ?? "Cookies captured.");
+            } catch (error) {
+              setResult(getErrorMessage(error, "Cookie capture failed."));
+            } finally {
+              setCapturingCookies(false);
+            }
+          }}
+        >
+          {capturingCookies ? "Capturing cookies..." : "One-click capture from active browser profile"}
+        </Button>
+      ) : null}
       {portal.lastError ? (
         <Input
           className="border-white/10 bg-white/5 border-dashed"

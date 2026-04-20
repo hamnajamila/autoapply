@@ -42,6 +42,17 @@ export function useDisconnectPortal() {
   });
 }
 
+export function useCapturePortalCookies() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (portalName: string) => (await api.post(`/api/portals/${portalName}/capture-cookies`)).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["portals"] });
+      qc.invalidateQueries({ queryKey: ["dashboard-stats"] });
+    }
+  });
+}
+
 export function useCreateCustomPortal() {
   const qc = useQueryClient();
   return useMutation({

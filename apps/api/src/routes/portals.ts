@@ -212,6 +212,66 @@ async function persistAutoApplyCredentialSeed(userId: string, email: string, pas
   });
 }
 
+const COOKIE_CAPTURE_TARGETS: Record<string, string> = {
+  mercor: "https://mercor.com",
+  jobright: "https://jobright.ai",
+  wellfound: "https://wellfound.com",
+  linkedin: "https://www.linkedin.com"
+};
+
+async function captureCookiesFromActiveBrowser(portalName: string): Promise<string> {
+  const targetUrl = COOKIE_CAPTURE_TARGETS[portalName];
+  if (!targetUrl) {
+    throw new Error("cookie_capture_unsupported_portal");
+  }
+
+  // chrome-cookies-secure requires direct access to the local desktop browser profile.
+  // In containerized Linux runtimes this is unavailable and can crash native sqlite bindings.
+  if (process.platform !== "win32") {
+    throw new Error("cookie_capture_local_desktop_only");
+  }
+
+  const chromeCookiesSecure = await import("chrome-cookies-secure");
+  const getCookies = chromeCookiesSecure.default?.getCookies ?? chromeCookiesSecure.getCookies;
+  if (!getCookies) {
+    throw new Error("cookie_capture_unavailable");
+  }
+
+  const cookieHeader = await new Promise<string>((resolve, reject) => {
+    getCookies(
+      targetUrl,
+      "header",
+      (error: unknown, values: string) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(values ?? "");
+      }
+    );
+  });
+
+  const normalized = cookieHeader
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const separatorIndex = part.indexOf("=");
+      const name = separatorIndex > -1 ? part.slice(0, separatorIndex).trim() : part.trim();
+      const value = separatorIndex > -1 ? part.slice(separatorIndex + 1).trim() : "";
+      return {
+        name,
+        value,
+        domain: new URL(targetUrl).hostname
+      };
+    })
+    .filter((cookie) => cookie.name.length > 0);
+  if (!normalized.length) {
+    throw new Error("cookie_capture_empty");
+  }
+  return JSON.stringify(normalized);
+}
+
 router.post("/:portalName/connect", authenticate, validate({ body: ConnectBody }), async (req, res, next) => {
   try {
     const userId = req.auth!.userId;
@@ -306,6 +366,48 @@ router.post("/:portalName/connect", authenticate, validate({ body: ConnectBody }
     return res.json({ success, message });
   } catch (err) {
     return next(err);
+  }
+});
+
+router.post("/:portalName/capture-cookies", authenticate, async (req, res) => {
+  const userId = req.auth!.userId;
+  const portalName = String(req.params["portalName"] || "").toLowerCase();
+
+  try {
+    const cookiesJson = await captureCookiesFromActiveBrowser(portalName);
+    await prisma.portalCredential.upsert({
+      where: { userId_portalName: { userId, portalName } },
+      update: { cookiesJson, isActive: true, lastError: null, lastSynced: new Date() },
+      create: {
+        userId,
+        portalName,
+        encryptedData: encrypt(JSON.stringify({}), env.ENCRYPTION_KEY),
+        cookiesJson,
+        isActive: true,
+        lastSynced: new Date()
+      }
+    });
+    return res.json({
+      success: true,
+      message: "Cookies captured from active browser profile and saved."
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "cookie_capture_failed";
+    if (message.includes("cookie_capture_local_desktop_only")) {
+      return res.status(400).json({
+        error:
+          "One-click browser profile capture requires running AutoApply API directly on your local Windows machine (not inside Docker). Use manual cookie paste for now."
+      });
+    }
+    if (message.includes("cookie_capture_empty")) {
+      return res.status(400).json({
+        error: "No cookies found. Log in to this portal in Chrome first, then retry capture."
+      });
+    }
+    return res.status(400).json({
+      error:
+        "Could not capture cookies from active browser profile. Make sure Chrome is installed, you are logged in to the portal, and this app runs on your local machine."
+    });
   }
 });
 

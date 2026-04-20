@@ -69,6 +69,37 @@ const STOP_WORDS = new Set([
   "developer"
 ]);
 
+const DOMAIN_KEYWORDS: Record<string, string[]> = {
+  ai_ml_data: [
+    "machine learning",
+    "ml",
+    "ai",
+    "artificial intelligence",
+    "deep learning",
+    "data science",
+    "data scientist",
+    "nlp",
+    "computer vision",
+    "llm",
+    "genai",
+    "generative ai",
+    "statistics",
+    "pytorch",
+    "tensorflow",
+    "scikit",
+    "mle",
+    "data engineer",
+    "analytics"
+  ],
+  software: ["software", "backend", "frontend", "full stack", "web development", "api", "typescript", "node", "react"],
+  product_design: ["product manager", "ux", "ui", "design", "figma", "research"],
+  marketing_sales: ["marketing", "seo", "campaign", "sales", "growth", "crm"],
+  finance_accounting: ["finance", "accounting", "audit", "tax", "investment", "banking"],
+  legal_compliance: ["legal", "paralegal", "law", "compliance", "contract", "litigation"],
+  healthcare: ["nurse", "doctor", "clinical", "medical", "healthcare", "patient"],
+  education: ["teacher", "education", "curriculum", "instructor", "training"]
+};
+
 function normalizeKeyword(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9+#/. -]/g, " ").replace(/\s+/g, " ").trim();
 }
@@ -118,12 +149,29 @@ export function getProfileSearchKeywords(profile: UserProfile | null | undefined
     ...(profile.skills ?? []),
     ...(profile.certifications ?? []),
     ...(profile.languages ?? []),
-    ...(profile.experience ?? []).flatMap((item) => [item.title, item.company, ...item.achievements]),
-    ...(profile.education ?? []).flatMap((item) => [item.degree, item.field, item.institution]),
+    ...(profile.experience ?? []).flatMap((item) => [item.title, ...item.achievements]),
+    ...(profile.education ?? []).flatMap((item) => [item.degree, item.field]),
     profile.summary ?? ""
   ];
 
   return extractRelevantKeywords(seededTerms.join("\n"), seededTerms);
+}
+
+function inferProfileDomains(profile: UserProfile | null | undefined): string[] {
+  if (!profile) return [];
+  const keywords = getProfileSearchKeywords(profile);
+  if (!keywords.length) return [];
+
+  const text = normalizeKeyword(keywords.join(" "));
+  const scored = Object.entries(DOMAIN_KEYWORDS)
+    .map(([domain, tokens]) => ({
+      domain,
+      score: tokens.reduce((acc, token) => (text.includes(normalizeKeyword(token)) ? acc + 1 : acc), 0)
+    }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  return scored.slice(0, 2).map((entry) => entry.domain);
 }
 
 function scoreListingAgainstKeywords(listing: JobListing, keywords: string[]) {
@@ -172,7 +220,7 @@ function scoreListingAgainstKeywords(listing: JobListing, keywords: string[]) {
 export function scoreListingRelevance(listing: Pick<JobListing, "title" | "company" | "location" | "description" | "tags">, profile: UserProfile | null | undefined): number {
   const keywords = getProfileSearchKeywords(profile);
   if (!keywords.length) return 0;
-  return scoreListingAgainstKeywords(
+  const baseScore = scoreListingAgainstKeywords(
     {
       portalName: "relevance",
       externalId: "relevance",
@@ -186,6 +234,20 @@ export function scoreListingRelevance(listing: Pick<JobListing, "title" | "compa
     },
     keywords
   );
+  if (baseScore === 0) return 0;
+
+  const profileDomains = inferProfileDomains(profile);
+  if (!profileDomains.length) return baseScore;
+
+  const listingText = normalizeKeyword([listing.title, listing.description, ...(listing.tags ?? [])].join(" "));
+  const domainMatchScore = profileDomains.reduce((acc, domain) => {
+    const tokens = DOMAIN_KEYWORDS[domain] ?? [];
+    const tokenHits = tokens.reduce((hits, token) => (listingText.includes(normalizeKeyword(token)) ? hits + 1 : hits), 0);
+    return acc + tokenHits;
+  }, 0);
+
+  if (domainMatchScore === 0) return 0;
+  return baseScore + domainMatchScore * 3;
 }
 
 export function filterRelevantListings<T extends Pick<JobListing, "title" | "company" | "location" | "description" | "tags">>(
