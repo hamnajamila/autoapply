@@ -25,9 +25,34 @@ export class MercorPortal extends BasePortal {
 
     await this.safeGoto("https://mercor.com/login");
     await this.randomDelay();
-    await this.page.locator('input[type="email"], input[name="email"]').first().fill(email);
-    await this.page.locator('input[type="password"], input[name="password"]').first().fill(password);
-    await this.page.locator('button[type="submit"], button:has-text("Continue"), button:has-text("Sign in")').first().click();
+
+    const emailField = this.page.locator('input[type="email"], input[name="email"], input[placeholder*="Email"]').first();
+    const passwordField = this.page.locator('input[type="password"], input[name="password"], input[placeholder*="Password"]').first();
+    const hasEmailField = await emailField.isVisible().catch(() => false);
+
+    if (!hasEmailField) {
+      const signInCandidates = this.page.locator("button, a, [role='button']").filter({ hasText: /sign in|log in|continue/i });
+      const candidateCount = await signInCandidates.count();
+      for (let index = 0; index < candidateCount; index += 1) {
+        const candidate = signInCandidates.nth(index);
+        const visible = await candidate.isVisible().catch(() => false);
+        if (!visible) continue;
+        await candidate.click().catch(() => undefined);
+        await this.randomDelay(600, 1400);
+        const appeared = await emailField.isVisible().catch(() => false);
+        if (appeared) break;
+      }
+    }
+
+    const visibleAfterAttempts = await emailField.isVisible().catch(() => false);
+    if (!visibleAfterAttempts) {
+      throw new Error("portal_login_form_unavailable");
+    }
+
+    await emailField.fill(email);
+    await passwordField.fill(password);
+    await this.randomDelay(600, 1400);
+    await this.page.locator('button[type="submit"], button:has-text("Continue"), button:has-text("Sign in"), button:has-text("Log in")').first().click();
     await this.page.waitForLoadState("domcontentloaded", { timeout: 30000 }).catch(() => undefined);
   }
 
