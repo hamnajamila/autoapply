@@ -4,6 +4,7 @@ import { BasePortal } from "./BasePortal";
 import { FormDetector } from "../automation/FormDetector";
 import { fillFormFields } from "../llm/formFiller";
 import { FormSubmitter } from "../automation/FormSubmitter";
+import { getProfileFocusTerms } from "../llm/resumeKeywords";
 
 type LinkedInCredentials = {
   accessToken?: string;
@@ -26,19 +27,100 @@ export class LinkedInPortal extends BasePortal {
 
   async login(credentials: Record<string, string>): Promise<void> {
     this.accessToken = (credentials as LinkedInCredentials).accessToken ?? null;
-    // Browser/session login is handled via cookies restored in initBrowser().
-    if (!this.accessToken && this.requiresAuth) {
+    if (this.accessToken) {
+      return;
+    }
+
+    if (!this.page) {
+      throw new Error("Browser not initialized");
+    }
+
+    const email = credentials["email"] ?? credentials["username"] ?? "";
+    const password = credentials["password"] ?? "";
+    if (!email || !password) {
       throw new Error("missing_linkedin_access_token");
     }
+
+    await this.safeGoto("https://www.linkedin.com/login");
+    await this.randomDelay(1000, 1800);
+    await this.page.locator('input[name="session_key"], input[type="email"]').first().fill(email);
+    await this.page.locator('input[name="session_password"], input[type="password"]').first().fill(password);
+    await this.page.locator('button[type="submit"], button:has-text("Sign in")').first().click();
+    await this.page.waitForLoadState("domcontentloaded", { timeout: 30000 }).catch(() => undefined);
   }
 
   async scrapeJobs(profile?: UserProfile): Promise<JobListing[]> {
-    if (!this.accessToken) throw new Error("missing_linkedin_access_token");
-    const topSkills = (profile?.skills ?? []).slice(0, 5);
-    const keywords = topSkills.length ? topSkills : [profile?.summary?.split(" ").slice(0, 3).join(" ") ?? "remote"];
+    const keywords = getProfileFocusTerms(profile, 4).filter((term) => term.length >= 3);
+
+    if (!this.accessToken) {
+      if (!this.page) throw new Error("Browser not initialized");
+
+      const browserResults: JobListing[] = [];
+      const queries = keywords.length ? keywords : ["remote"];
+      for (const query of queries) {
+        await this.safeGoto(
+          `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(query)}&location=Worldwide&f_WT=2`
+        );
+        await this.randomDelay(1200, 2200);
+
+        const items = await this.page.evaluate(() => {
+          const cards = Array.from(
+            document.querySelectorAll('[data-job-id], .jobs-search-results__list-item, a[href*="/jobs/view/"]')
+          ).slice(0, 40);
+
+          return cards
+            .map((card) => {
+              const root = (card as HTMLElement).closest("li, div") ?? (card as HTMLElement);
+              const link =
+                (root.querySelector('a[href*="/jobs/view/"]') as HTMLAnchorElement | null)?.href ??
+                (card as HTMLAnchorElement | null)?.href ??
+                "";
+              const externalId =
+                (root.getAttribute("data-job-id") ?? link.match(/jobs\/view\/(\d+)/)?.[1] ?? link).trim();
+              const title =
+                root.querySelector(".job-card-list__title, .job-card-container__link, h3, strong")?.textContent?.trim() ?? "";
+              const company =
+                root.querySelector(".job-card-container__company-name, .artdeco-entity-lockup__subtitle, h4")?.textContent?.trim() ??
+                "";
+              const location =
+                root.querySelector(".job-card-container__metadata-item, .job-card-container__metadata-wrapper")?.textContent?.trim() ??
+                "Remote";
+              const description =
+                root.querySelector(".job-card-list__description, .job-card-container__footer-item")?.textContent?.trim() ?? "";
+
+              return { externalId, title, company, location, description, link };
+            })
+            .filter((item) => item.externalId && item.title && item.company && item.link);
+        });
+
+        for (const item of items) {
+          browserResults.push({
+            portalName: this.name,
+            externalId: String(item.externalId),
+            title: String(item.title),
+            company: String(item.company),
+            companyLogoUrl: null,
+            location: String(item.location || "Remote"),
+            description: String(item.description || ""),
+            applyUrl: String(item.link),
+            salaryMin: null,
+            salaryMax: null,
+            salaryCurrency: null,
+            jobType: null,
+            tags: [],
+            isRemote: true,
+            postedAt: null
+          });
+        }
+      }
+
+      return Array.from(new Map(browserResults.map((job) => [job.externalId, job])).values()).slice(0, 60);
+    }
+
+    const apiKeywords = keywords.length ? keywords : [profile?.summary?.split(" ").slice(0, 3).join(" ") ?? "remote"];
 
     const all: JobListing[] = [];
-    for (const kw of keywords) {
+    for (const kw of apiKeywords) {
       const res = await axios.get("https://api.linkedin.com/v2/jobSearch", {
         headers: { Authorization: `Bearer ${this.accessToken}` },
         params: {

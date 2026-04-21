@@ -3,6 +3,7 @@ import { BasePortal } from "./BasePortal";
 import { FormDetector } from "../automation/FormDetector";
 import { fillFormFields } from "../llm/formFiller";
 import { FormSubmitter } from "../automation/FormSubmitter";
+import { getProfileFocusTerms } from "../llm/resumeKeywords";
 
 export class WellfoundPortal extends BasePortal {
   readonly name = "wellfound";
@@ -30,26 +31,38 @@ export class WellfoundPortal extends BasePortal {
     await this.page.waitForLoadState("domcontentloaded", { timeout: 30000 }).catch(() => undefined);
   }
 
-  async scrapeJobs(): Promise<JobListing[]> {
+  async scrapeJobs(profile?: UserProfile): Promise<JobListing[]> {
     if (!this.page) throw new Error("Browser not initialized");
-    await this.safeGoto("https://wellfound.com/role/r/remote");
-    await this.randomDelay();
-    if (await this.detectCaptcha()) throw new Error("captcha_required");
+    const queries = getProfileFocusTerms(profile, 4).filter((term) => term.length >= 3);
+    const urls = (queries.length ? queries : ["remote"]).map(
+      (query) => `https://wellfound.com/jobs?query=${encodeURIComponent(query)}`
+    );
 
-    const jobs = await this.page.evaluate(() => {
-      const cards = Array.from(document.querySelectorAll('a[href*="/company/"], a[href*="/jobs/"]')).slice(0, 60);
-      const out: any[] = [];
-      for (const a of cards) {
-        const href = (a as HTMLAnchorElement).href;
-        const title = (a as HTMLElement).querySelector("h3,h2")?.textContent?.trim() ?? (a as HTMLElement).textContent?.trim() ?? "";
-        const company = (a as HTMLElement).querySelector("[data-testid*='company'], .company")?.textContent?.trim() ?? "";
-        if (!href || !title) continue;
-        out.push({ href, title, company: company || "Unknown" });
-      }
-      return out;
-    });
+    const aggregate: any[] = [];
+    for (const url of urls) {
+      await this.safeGoto(url);
+      await this.randomDelay();
+      if (await this.detectCaptcha()) throw new Error("captcha_required");
 
-    const uniq = Array.from(new Map((jobs as any[]).map((j) => [j.href, j])).values()).slice(0, 30);
+      const jobs = await this.page.evaluate(() => {
+        const cards = Array.from(document.querySelectorAll('a[href*="/company/"], a[href*="/jobs/"]')).slice(0, 60);
+        const out: any[] = [];
+        for (const a of cards) {
+          const href = (a as HTMLAnchorElement).href;
+          const title =
+            (a as HTMLElement).querySelector("h3,h2")?.textContent?.trim() ?? (a as HTMLElement).textContent?.trim() ?? "";
+          const company = (a as HTMLElement).querySelector("[data-testid*='company'], .company")?.textContent?.trim() ?? "";
+          const description = (a as HTMLElement).textContent?.trim() ?? "";
+          if (!href || !title) continue;
+          out.push({ href, title, company: company || "Unknown", description });
+        }
+        return out;
+      });
+
+      aggregate.push(...jobs);
+    }
+
+    const uniq = Array.from(new Map(aggregate.map((job) => [job.href, job])).values()).slice(0, 40);
     return uniq.map((j) => ({
       portalName: this.name,
       externalId: String(j.href),
@@ -57,7 +70,7 @@ export class WellfoundPortal extends BasePortal {
       company: String(j.company ?? "Unknown"),
       companyLogoUrl: null,
       location: "Remote",
-      description: "",
+      description: String(j.description ?? ""),
       applyUrl: String(j.href),
       salaryMin: null,
       salaryMax: null,

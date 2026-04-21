@@ -5,8 +5,10 @@ import { authenticate } from "../middleware/authenticate";
 import { validate } from "../middleware/validate";
 import { enqueueMatch } from "../workers/queues";
 import { getYouthKeywords, readPreferences } from "../utils/userPreferences";
-import { filterRelevantListings, getProfileSearchKeywords } from "../services/llm/resumeKeywords";
+import { filterRelevantListings, getProfileFocusTerms } from "../services/llm/resumeKeywords";
 import type { UserProfile } from "@autoapply/shared";
+import { sanitizeText } from "../utils/text";
+import { inferYouthOpportunityType, isLikelyYouthListing } from "../utils/jobClassification";
 
 const router = Router();
 
@@ -22,15 +24,6 @@ const KeywordsBody = z.object({
   keywords: z.array(z.string().min(1)).min(1)
 });
 
-function inferType(job: { title: string; description: string; tags: string[] }) {
-  const haystack = [job.title, job.description, ...(job.tags ?? [])].join(" ").toLowerCase();
-  if (haystack.includes("scholarship")) return "scholarship";
-  if (haystack.includes("fellowship")) return "fellowship";
-  if (haystack.includes("hackathon")) return "hackathon";
-  if (haystack.includes("competition")) return "competition";
-  return "internship";
-}
-
 router.get("/", authenticate, validate({ query: ListQuery }), async (req, res, next) => {
   try {
     const q = req.query as unknown as z.infer<typeof ListQuery>;
@@ -39,33 +32,42 @@ router.get("/", authenticate, validate({ query: ListQuery }), async (req, res, n
       select: { preferences: true, profileJson: true }
     });
     const keywords = getYouthKeywords(user?.preferences);
-    const allKeywords = q.keyword ? [q.keyword.toLowerCase(), ...keywords] : keywords;
+    const profile = (user?.profileJson ?? {}) as UserProfile;
+    const profileFocus = getProfileFocusTerms(profile, 16);
+    const allKeywords = q.keyword ? [q.keyword.toLowerCase(), ...keywords, ...profileFocus] : [...keywords, ...profileFocus];
+    const uniqueKeywords = Array.from(new Set(allKeywords.filter(Boolean)));
 
     const jobs = await prisma.job.findMany({
-      where: {
-        OR: allKeywords.flatMap((keyword) => [
-          { title: { contains: keyword, mode: "insensitive" } },
-          { description: { contains: keyword, mode: "insensitive" } },
-          { tags: { has: keyword } }
-        ]),
-        ...(q.isRemote !== undefined ? { isRemote: q.isRemote } : {})
-      },
+      where: uniqueKeywords.length
+        ? {
+            OR: uniqueKeywords.flatMap((keyword) => [
+              { title: { contains: keyword, mode: "insensitive" } },
+              { description: { contains: keyword, mode: "insensitive" } },
+              { tags: { has: keyword } }
+            ]),
+            ...(q.isRemote !== undefined ? { isRemote: q.isRemote } : {})
+          }
+        : {
+            ...(q.isRemote !== undefined ? { isRemote: q.isRemote } : {}),
+            isRemote: q.isRemote ?? true
+          },
       orderBy: { scrapedAt: "desc" },
-      take: 150
+      take: 250
     });
 
     const mapped = jobs
       .map((job) => ({
         ...job,
-        type: inferType(job)
+        title: sanitizeText(job.title),
+        company: sanitizeText(job.company),
+        description: sanitizeText(job.description),
+        type: inferYouthOpportunityType(job)
       }))
       .filter((job) => (q.type ? job.type === q.type : true))
-      .filter((job) => !["nts", "fpsc", "ppsc", "spsc", "bpsc", "kppsc", "pts", "ots"].includes(job.portalName.toLowerCase()));
+      .filter((job) => isLikelyYouthListing(job));
 
-    const profile = (user?.profileJson ?? {}) as UserProfile;
-    const hasProfileKeywords = getProfileSearchKeywords(profile).length > 0;
-    const relevantRanked = hasProfileKeywords
-      ? filterRelevantListings(mapped as any, profile, 8).sort((left, right) => {
+    const relevantRanked = profileFocus.length
+      ? filterRelevantListings(mapped as any, profile, 12).sort((left, right) => {
           if (right.relevanceScore !== left.relevanceScore) return right.relevanceScore - left.relevanceScore;
           return new Date((right as any).scrapedAt).getTime() - new Date((left as any).scrapedAt).getTime();
         })
@@ -95,25 +97,31 @@ router.get("/stats", authenticate, async (req, res, next) => {
       select: { preferences: true, profileJson: true }
     });
     const keywords = getYouthKeywords(user?.preferences);
+    const profile = (user?.profileJson ?? {}) as UserProfile;
+    const profileFocus = getProfileFocusTerms(profile, 16);
+    const combinedKeywords = [...keywords, ...profileFocus];
+    const uniqueKeywords = Array.from(new Set(combinedKeywords.filter(Boolean)));
+    const statsWhere = uniqueKeywords.length
+      ? {
+          OR: uniqueKeywords.flatMap((keyword) => [
+            { title: { contains: keyword, mode: "insensitive" as const } },
+            { description: { contains: keyword, mode: "insensitive" as const } },
+            { tags: { has: keyword } }
+          ])
+        }
+      : {};
 
     const jobs = await prisma.job.findMany({
-      where: {
-        OR: keywords.flatMap((keyword) => [
-          { title: { contains: keyword, mode: "insensitive" } },
-          { description: { contains: keyword, mode: "insensitive" } },
-          { tags: { has: keyword } }
-        ])
-      },
-      take: 200
+      where: statsWhere,
+      take: 250
     });
 
-    const profile = (user?.profileJson ?? {}) as UserProfile;
     const baseJobs = jobs
-      .map((job) => ({ ...job, type: inferType(job) }))
-      .filter((job) => !["nts", "fpsc", "ppsc", "spsc", "bpsc", "kppsc", "pts", "ots"].includes(job.portalName.toLowerCase()));
+      .map((job) => ({ ...job, type: inferYouthOpportunityType(job) }))
+      .filter((job) => isLikelyYouthListing(job));
     const ranked =
-      getProfileSearchKeywords(profile).length > 0
-        ? filterRelevantListings(baseJobs as any, profile, 8)
+      profileFocus.length > 0
+        ? filterRelevantListings(baseJobs as any, profile, 12)
         : baseJobs.map((item) => ({ ...item, relevanceScore: 0 }));
 
     const counts = ranked.reduce<Record<string, number>>((accumulator, job) => {

@@ -48,6 +48,7 @@ const STOP_WORDS = new Set([
   "worked",
   "working",
   "years",
+  "year",
   "your",
   "manager",
   "senior",
@@ -66,51 +67,62 @@ const STOP_WORDS = new Set([
   "officer",
   "consultant",
   "engineer",
-  "developer"
+  "developer",
+  "remote",
+  "hybrid",
+  "onsite",
+  "experience",
+  "team",
+  "teams",
+  "industry",
+  "field"
 ]);
 
-const DOMAIN_KEYWORDS: Record<string, string[]> = {
-  ai_ml_data: [
-    "machine learning",
-    "ml",
-    "ai",
-    "artificial intelligence",
-    "deep learning",
-    "data science",
-    "data scientist",
-    "nlp",
-    "computer vision",
-    "llm",
-    "genai",
-    "generative ai",
-    "statistics",
-    "pytorch",
-    "tensorflow",
-    "scikit",
-    "mle",
-    "data engineer",
-    "analytics"
-  ],
-  software: ["software", "backend", "frontend", "full stack", "web development", "api", "typescript", "node", "react"],
-  product_design: ["product manager", "ux", "ui", "design", "figma", "research"],
-  marketing_sales: ["marketing", "seo", "campaign", "sales", "growth", "crm"],
-  finance_accounting: ["finance", "accounting", "audit", "tax", "investment", "banking"],
-  legal_compliance: ["legal", "paralegal", "law", "compliance", "contract", "litigation"],
-  healthcare: ["nurse", "doctor", "clinical", "medical", "healthcare", "patient"],
-  education: ["teacher", "education", "curriculum", "instructor", "training"]
-};
-
 function normalizeKeyword(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9+#/. -]/g, " ").replace(/\s+/g, " ").trim();
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9+#/. -]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenize(value: string) {
+  return normalizeKeyword(value)
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !STOP_WORDS.has(token));
 }
 
 function addKeyword(target: Set<string>, raw: string) {
   const value = normalizeKeyword(raw);
   if (!value) return;
-  if (value.length < 2 || value.length > 40) return;
+  if (value.length < 2 || value.length > 60) return;
   if (STOP_WORDS.has(value)) return;
   if (/^\d+$/.test(value)) return;
   target.add(value);
+}
+
+function addWeightedPhrase(target: Map<string, number>, raw: string, weight: number) {
+  const normalized = normalizeKeyword(raw);
+  if (!normalized) return;
+
+  if (normalized.includes(" ") && normalized.length <= 80 && !STOP_WORDS.has(normalized)) {
+    target.set(normalized, (target.get(normalized) ?? 0) + weight + 2);
+  }
+
+  for (const token of tokenize(normalized)) {
+    target.set(token, (target.get(token) ?? 0) + weight);
+  }
+}
+
+function uniqueStrings(values: Array<string | undefined | null>) {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => (typeof value === "string" ? value.trim() : ""))
+        .filter(Boolean)
+    )
+  );
 }
 
 export function extractRelevantKeywords(text: string, explicitTerms: string[] = []): string[] {
@@ -123,7 +135,7 @@ export function extractRelevantKeywords(text: string, explicitTerms: string[] = 
   const normalizedText = text.replace(/[|/]/g, ",");
   const lines = normalizedText.split(/\r?\n/);
   for (const line of lines) {
-    for (const part of line.split(/[,:;()•\u2022-]/g)) {
+    for (const part of line.split(/[,:;()â€¢\u2022-]/g)) {
       const trimmed = part.trim();
       if (!trimmed) continue;
 
@@ -137,7 +149,7 @@ export function extractRelevantKeywords(text: string, explicitTerms: string[] = 
     }
   }
 
-  return Array.from(bucket).slice(0, 40);
+  return Array.from(bucket).slice(0, 60);
 }
 
 export function getProfileSearchKeywords(profile: UserProfile | null | undefined): string[] {
@@ -149,61 +161,99 @@ export function getProfileSearchKeywords(profile: UserProfile | null | undefined
     ...(profile.skills ?? []),
     ...(profile.certifications ?? []),
     ...(profile.languages ?? []),
-    ...(profile.experience ?? []).flatMap((item) => [item.title, ...item.achievements]),
-    ...(profile.education ?? []).flatMap((item) => [item.degree, item.field]),
-    profile.summary ?? ""
+    ...(profile.experience ?? []).flatMap((item) => [item.title, item.company, item.description, ...item.achievements]),
+    ...(profile.education ?? []).flatMap((item) => [item.degree, item.field, item.institution]),
+    profile.summary ?? "",
+    profile.location ?? ""
   ];
 
   return extractRelevantKeywords(seededTerms.join("\n"), seededTerms);
 }
 
-function inferProfileDomains(profile: UserProfile | null | undefined): string[] {
+export function getProfileFocusTerms(profile: UserProfile | null | undefined, limit = 18): string[] {
   if (!profile) return [];
-  const keywords = getProfileSearchKeywords(profile);
-  if (!keywords.length) return [];
 
-  const text = normalizeKeyword(keywords.join(" "));
-  const scored = Object.entries(DOMAIN_KEYWORDS)
-    .map(([domain, tokens]) => ({
-      domain,
-      score: tokens.reduce((acc, token) => (text.includes(normalizeKeyword(token)) ? acc + 1 : acc), 0)
-    }))
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score);
+  const weighted = new Map<string, number>();
 
-  return scored.slice(0, 2).map((entry) => entry.domain);
+  for (const term of profile.targetJobKeywords ?? []) addWeightedPhrase(weighted, term, 6);
+  for (const term of profile.extractedKeywords ?? []) addWeightedPhrase(weighted, term, 5);
+  for (const skill of profile.skills ?? []) addWeightedPhrase(weighted, skill, 5);
+  for (const cert of profile.certifications ?? []) addWeightedPhrase(weighted, cert, 3);
+  for (const language of profile.languages ?? []) addWeightedPhrase(weighted, language, 2);
+  for (const experience of profile.experience ?? []) {
+    addWeightedPhrase(weighted, experience.title, 7);
+    addWeightedPhrase(weighted, experience.company, 1);
+    addWeightedPhrase(weighted, experience.description, 3);
+    for (const achievement of experience.achievements ?? []) {
+      addWeightedPhrase(weighted, achievement, 3);
+    }
+  }
+  for (const education of profile.education ?? []) {
+    addWeightedPhrase(weighted, education.degree, 3);
+    addWeightedPhrase(weighted, education.field, 5);
+    addWeightedPhrase(weighted, education.institution, 1);
+  }
+  addWeightedPhrase(weighted, profile.summary ?? "", 2);
+
+  return Array.from(weighted.entries())
+    .filter(([term]) => term.length >= 3)
+    .sort((left, right) => {
+      if (right[1] !== left[1]) return right[1] - left[1];
+      return right[0].length - left[0].length;
+    })
+    .map(([term]) => term)
+    .slice(0, limit);
 }
 
-function scoreListingAgainstKeywords(listing: JobListing, keywords: string[]) {
-  if (!keywords.length) return 0;
+function buildListingText(listing: Pick<JobListing, "title" | "company" | "location" | "description" | "tags">) {
+  return {
+    title: normalizeKeyword(listing.title),
+    company: normalizeKeyword(listing.company ?? ""),
+    location: normalizeKeyword(listing.location ?? ""),
+    description: normalizeKeyword(listing.description ?? ""),
+    tags: normalizeKeyword((listing.tags ?? []).join(" "))
+  };
+}
 
-  const title = normalizeKeyword(listing.title);
-  const tags = normalizeKeyword((listing.tags ?? []).join(" "));
-  const description = normalizeKeyword(listing.description ?? "");
-  const company = normalizeKeyword(listing.company ?? "");
-  const haystack = `${title} ${tags} ${description} ${company}`.trim();
+function scoreListingAgainstFocus(listing: Pick<JobListing, "title" | "company" | "location" | "description" | "tags">, focusTerms: string[]) {
+  if (!focusTerms.length) return 0;
+
+  const fields = buildListingText(listing);
+  const titleTokens = new Set(tokenize(fields.title));
+  const descriptionTokens = new Set(tokenize(fields.description));
 
   let score = 0;
   let titleOrTagHits = 0;
-  for (const keyword of keywords) {
-    if (!haystack.includes(keyword)) continue;
-    const inTitle = title.includes(keyword);
-    const inTags = tags.includes(keyword);
-    const inDescription = description.includes(keyword);
-    const inCompany = company.includes(keyword);
+  let descriptionHits = 0;
+
+  for (const term of focusTerms) {
+    const normalizedTerm = normalizeKeyword(term);
+    if (!normalizedTerm) continue;
+
+    const inTitle = fields.title.includes(normalizedTerm);
+    const inTags = fields.tags.includes(normalizedTerm);
+    const inDescription = fields.description.includes(normalizedTerm);
+    const inLocation = fields.location.includes(normalizedTerm);
+    const inCompany = fields.company.includes(normalizedTerm);
+    const isPhrase = normalizedTerm.includes(" ");
 
     if (inTitle) {
-      score += 8;
+      score += isPhrase ? 18 : 12;
       titleOrTagHits += 1;
       continue;
     }
     if (inTags) {
-      score += 6;
+      score += isPhrase ? 14 : 10;
       titleOrTagHits += 1;
       continue;
     }
     if (inDescription) {
-      score += 2;
+      score += isPhrase ? 7 : 4;
+      descriptionHits += 1;
+      continue;
+    }
+    if (inLocation) {
+      score += 1;
       continue;
     }
     if (inCompany) {
@@ -211,49 +261,40 @@ function scoreListingAgainstKeywords(listing: JobListing, keywords: string[]) {
     }
   }
 
-  // Hard gate: must match at least one meaningful keyword in title/tags.
-  if (titleOrTagHits === 0) return 0;
+  const focusTokens = new Set(focusTerms.flatMap((term) => tokenize(term)));
+  let titleTokenOverlap = 0;
+  let descriptionTokenOverlap = 0;
+  for (const token of focusTokens) {
+    if (titleTokens.has(token)) titleTokenOverlap += 1;
+    else if (descriptionTokens.has(token)) descriptionTokenOverlap += 1;
+  }
+
+  score += titleTokenOverlap * 6;
+  score += Math.min(descriptionTokenOverlap, 6) * 2;
+
+  if (titleOrTagHits === 0 && titleTokenOverlap < 2) {
+    return 0;
+  }
+  if (titleOrTagHits === 0 && descriptionHits < 2 && descriptionTokenOverlap < 3) {
+    return 0;
+  }
 
   return score;
 }
 
-export function scoreListingRelevance(listing: Pick<JobListing, "title" | "company" | "location" | "description" | "tags">, profile: UserProfile | null | undefined): number {
-  const keywords = getProfileSearchKeywords(profile);
-  if (!keywords.length) return 0;
-  const baseScore = scoreListingAgainstKeywords(
-    {
-      portalName: "relevance",
-      externalId: "relevance",
-      title: listing.title,
-      company: listing.company,
-      location: listing.location ?? "Remote",
-      description: listing.description,
-      applyUrl: "",
-      tags: listing.tags ?? [],
-      isRemote: true
-    },
-    keywords
-  );
-  if (baseScore === 0) return 0;
-
-  const profileDomains = inferProfileDomains(profile);
-  if (!profileDomains.length) return baseScore;
-
-  const listingText = normalizeKeyword([listing.title, listing.description, ...(listing.tags ?? [])].join(" "));
-  const domainMatchScore = profileDomains.reduce((acc, domain) => {
-    const tokens = DOMAIN_KEYWORDS[domain] ?? [];
-    const tokenHits = tokens.reduce((hits, token) => (listingText.includes(normalizeKeyword(token)) ? hits + 1 : hits), 0);
-    return acc + tokenHits;
-  }, 0);
-
-  if (domainMatchScore === 0) return 0;
-  return baseScore + domainMatchScore * 3;
+export function scoreListingRelevance(
+  listing: Pick<JobListing, "title" | "company" | "location" | "description" | "tags">,
+  profile: UserProfile | null | undefined
+): number {
+  const focusTerms = getProfileFocusTerms(profile);
+  if (!focusTerms.length) return 0;
+  return scoreListingAgainstFocus(listing, focusTerms);
 }
 
 export function filterRelevantListings<T extends Pick<JobListing, "title" | "company" | "location" | "description" | "tags">>(
   listings: T[],
   profile: UserProfile | null | undefined,
-  minScore = 1
+  minScore = 10
 ): Array<T & { relevanceScore: number }> {
   return listings
     .map((listing) => ({
@@ -265,19 +306,23 @@ export function filterRelevantListings<T extends Pick<JobListing, "title" | "com
 }
 
 export function rankListingsForProfile(listings: JobListing[], profile: UserProfile | null | undefined): JobListing[] {
-  const keywords = getProfileSearchKeywords(profile);
-  if (!keywords.length) return listings;
+  const ranked = filterRelevantListings(listings, profile, 12);
+  return ranked.map((listing) => {
+    const { relevanceScore: _relevanceScore, ...job } = listing;
+    return job;
+  });
+}
 
-  const scored = listings.map((listing) => ({
-    listing,
-    score: scoreListingAgainstKeywords(listing, keywords)
-  }));
+export function inferPrimaryProfileSignals(profile: UserProfile | null | undefined) {
+  const focusTerms = getProfileFocusTerms(profile, 12);
+  const keywords = uniqueStrings([
+    ...(profile?.targetJobKeywords ?? []),
+    ...(profile?.extractedKeywords ?? []),
+    ...(profile?.skills ?? [])
+  ]).slice(0, 20);
 
-  const matched = scored
-    .filter((entry) => entry.score >= 8)
-    .sort((left, right) => right.score - left.score)
-    .map((entry) => entry.listing);
-
-  // Keep results strictly resume-relevant: never append zero-match listings.
-  return matched;
+  return {
+    focusTerms,
+    keywords
+  };
 }

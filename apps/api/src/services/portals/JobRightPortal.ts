@@ -3,6 +3,7 @@ import { BasePortal } from "./BasePortal";
 import { FormDetector } from "../automation/FormDetector";
 import { fillFormFields } from "../llm/formFiller";
 import { FormSubmitter } from "../automation/FormSubmitter";
+import { getProfileFocusTerms } from "../llm/resumeKeywords";
 
 export class JobRightPortal extends BasePortal {
   readonly name = "jobright";
@@ -67,33 +68,44 @@ export class JobRightPortal extends BasePortal {
     await this.page.waitForLoadState("domcontentloaded", { timeout: 30000 }).catch(() => undefined);
   }
 
-  async scrapeJobs(): Promise<JobListing[]> {
+  async scrapeJobs(profile?: UserProfile): Promise<JobListing[]> {
     if (!this.page) throw new Error("Browser not initialized");
-    await this.safeGoto("https://jobright.ai/jobs?remote=true");
-    await this.randomDelay();
-    if (await this.detectCaptcha()) throw new Error("captcha_required");
+    const queries = getProfileFocusTerms(profile, 4).filter((term) => term.length >= 3);
+    const urls = (queries.length ? queries : ["remote"]).map(
+      (query) => `https://jobright.ai/jobs?remote=true&keywords=${encodeURIComponent(query)}`
+    );
 
-    const jobs = await this.page.evaluate(() => {
-      const cards = Array.from(document.querySelectorAll('[data-testid*="job"], a[href*="/jobs/"], .job-card')).slice(0, 40);
-      const out: any[] = [];
-      for (const c of cards) {
-        const a = (c as HTMLElement).closest("a") ?? (c as HTMLElement).querySelector("a");
-        const href = (a as HTMLAnchorElement | null)?.href ?? "";
-        const title =
-          (c as HTMLElement).querySelector('[data-testid*="title"], .title')?.textContent?.trim() ??
-          (c as HTMLElement).querySelector("h3,h2")?.textContent?.trim() ??
-          "";
-        const company =
-          (c as HTMLElement).querySelector('[data-testid*="company"], .company')?.textContent?.trim() ??
-          (c as HTMLElement).querySelector("p")?.textContent?.trim() ??
-          "";
-        if (!href || !title || !company) continue;
-        out.push({ href, title, company });
-      }
-      return out;
-    });
+    const aggregate: any[] = [];
+    for (const url of urls) {
+      await this.safeGoto(url);
+      await this.randomDelay();
+      if (await this.detectCaptcha()) throw new Error("captcha_required");
 
-    return (jobs as any[])
+      const jobs = await this.page.evaluate(() => {
+        const cards = Array.from(document.querySelectorAll('[data-testid*="job"], a[href*="/jobs/"], .job-card')).slice(0, 50);
+        const out: any[] = [];
+        for (const c of cards) {
+          const a = (c as HTMLElement).closest("a") ?? (c as HTMLElement).querySelector("a");
+          const href = (a as HTMLAnchorElement | null)?.href ?? "";
+          const title =
+            (c as HTMLElement).querySelector('[data-testid*="title"], .title')?.textContent?.trim() ??
+            (c as HTMLElement).querySelector("h3,h2")?.textContent?.trim() ??
+            "";
+          const company =
+            (c as HTMLElement).querySelector('[data-testid*="company"], .company')?.textContent?.trim() ??
+            (c as HTMLElement).querySelector("p")?.textContent?.trim() ??
+            "";
+          const description = (c as HTMLElement).textContent?.trim() ?? "";
+          if (!href || !title || !company) continue;
+          out.push({ href, title, company, description });
+        }
+        return out;
+      });
+
+      aggregate.push(...jobs);
+    }
+
+    return Array.from(new Map(aggregate.map((job) => [job.href, job])).values())
       .map((j) => {
         const externalId = j.href;
         return {
@@ -103,7 +115,7 @@ export class JobRightPortal extends BasePortal {
           company: String(j.company),
           companyLogoUrl: null,
           location: "Remote",
-          description: "",
+          description: String(j.description ?? ""),
           applyUrl: String(j.href),
           salaryMin: null,
           salaryMax: null,
@@ -114,7 +126,7 @@ export class JobRightPortal extends BasePortal {
           postedAt: null
         } satisfies JobListing;
       })
-      .slice(0, 30);
+      .slice(0, 40);
   }
 
   async applyToJob(job: JobListing, profile: UserProfile, resumePath: string): Promise<ApplicationResult> {

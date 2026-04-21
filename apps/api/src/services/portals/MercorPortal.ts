@@ -3,6 +3,7 @@ import { BasePortal } from "./BasePortal";
 import { FormDetector } from "../automation/FormDetector";
 import { fillFormFields } from "../llm/formFiller";
 import { FormSubmitter } from "../automation/FormSubmitter";
+import { getProfileFocusTerms } from "../llm/resumeKeywords";
 
 export class MercorPortal extends BasePortal {
   readonly name = "mercor";
@@ -56,33 +57,45 @@ export class MercorPortal extends BasePortal {
     await this.page.waitForLoadState("domcontentloaded", { timeout: 30000 }).catch(() => undefined);
   }
 
-  async scrapeJobs(): Promise<JobListing[]> {
+  async scrapeJobs(profile?: UserProfile): Promise<JobListing[]> {
     if (!this.page) throw new Error("Browser not initialized");
-    await this.safeGoto("https://mercor.com/jobs");
-    await this.randomDelay();
-    if (await this.detectCaptcha()) throw new Error("captcha_required");
+    const queries = getProfileFocusTerms(profile, 4).filter((term) => term.length >= 3);
+    const urls = (queries.length ? queries : ["remote"]).map(
+      (query) => `https://mercor.com/jobs?search=${encodeURIComponent(query)}`
+    );
 
-    const jobs = await this.page.evaluate(() => {
-      const cards = Array.from(document.querySelectorAll("a[href*='/jobs/']")).slice(0, 40);
-      const out: any[] = [];
-      for (const a of cards) {
-        const href = (a as HTMLAnchorElement).href;
-        const title = (a as HTMLElement).querySelector("h3,h2")?.textContent?.trim() ?? (a as HTMLElement).textContent?.trim() ?? "";
-        const company = (a as HTMLElement).querySelector("[data-company], .company")?.textContent?.trim() ?? "";
-        if (!href || !title) continue;
-        out.push({ href, title, company: company || "Unknown" });
-      }
-      return out;
-    });
+    const aggregate: any[] = [];
+    for (const url of urls) {
+      await this.safeGoto(url);
+      await this.randomDelay();
+      if (await this.detectCaptcha()) throw new Error("captcha_required");
 
-    return (jobs as any[]).map((j) => ({
+      const jobs = await this.page.evaluate(() => {
+        const cards = Array.from(document.querySelectorAll("a[href*='/jobs/']")).slice(0, 50);
+        const out: any[] = [];
+        for (const a of cards) {
+          const href = (a as HTMLAnchorElement).href;
+          const title =
+            (a as HTMLElement).querySelector("h3,h2")?.textContent?.trim() ?? (a as HTMLElement).textContent?.trim() ?? "";
+          const company = (a as HTMLElement).querySelector("[data-company], .company")?.textContent?.trim() ?? "";
+          const description = (a as HTMLElement).textContent?.trim() ?? "";
+          if (!href || !title) continue;
+          out.push({ href, title, company: company || "Unknown", description });
+        }
+        return out;
+      });
+
+      aggregate.push(...jobs);
+    }
+
+    return Array.from(new Map(aggregate.map((job) => [job.href, job])).values()).map((j) => ({
       portalName: this.name,
       externalId: String(j.href),
       title: String(j.title),
       company: String(j.company ?? "Unknown"),
       companyLogoUrl: null,
       location: "Remote",
-      description: "",
+      description: String(j.description ?? ""),
       applyUrl: String(j.href),
       salaryMin: null,
       salaryMax: null,
@@ -91,7 +104,7 @@ export class MercorPortal extends BasePortal {
       tags: [],
       isRemote: true,
       postedAt: null
-    }));
+    })).slice(0, 40);
   }
 
   async applyToJob(job: JobListing, profile: UserProfile, resumePath: string): Promise<ApplicationResult> {

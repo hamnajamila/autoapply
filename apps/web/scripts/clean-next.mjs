@@ -5,7 +5,12 @@ import { spawnSync } from "node:child_process";
 const target = path.resolve(".next");
 
 function removeWithFs() {
-  fs.rmSync(target, { recursive: true, force: true });
+  fs.rmSync(target, {
+    recursive: true,
+    force: true,
+    maxRetries: 5,
+    retryDelay: 150
+  });
 }
 
 function removeWithPowerShell() {
@@ -24,6 +29,23 @@ function removeWithPowerShell() {
   }
 }
 
+function removeChildrenFallback() {
+  if (!fs.existsSync(target)) {
+    return;
+  }
+
+  for (const entry of fs.readdirSync(target)) {
+    fs.rmSync(path.join(target, entry), {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 150
+    });
+  }
+
+  fs.rmdirSync(target, { recursive: false });
+}
+
 try {
   removeWithFs();
 } catch (error) {
@@ -34,6 +56,10 @@ try {
   try {
     removeWithPowerShell();
   } catch {
-    console.warn("Skipping .next cleanup and continuing build.");
+    try {
+      removeChildrenFallback();
+    } catch {
+      console.warn("Skipping .next cleanup and continuing build.");
+    }
   }
 }

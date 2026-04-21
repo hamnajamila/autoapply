@@ -1,6 +1,8 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
 import { prisma } from "../../config/database";
+import { isLikelyGovernmentListing } from "../../utils/jobClassification";
+import { sanitizeText } from "../../utils/text";
 
 type BasicSource = {
   sourcePortal: string;
@@ -12,11 +14,18 @@ const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
 const SOURCES: BasicSource[] = [
-  { sourcePortal: "NTS", sourceUrl: "https://www.nts.org.pk/new", include: ["job", "vacancy", "post", "recruit"] },
-  { sourcePortal: "FPSC", sourceUrl: "https://www.fpsc.gov.pk/", include: ["advertisement", "job", "vacancy", "post"] },
-  { sourcePortal: "PPSC", sourceUrl: "https://www.ppsc.gop.pk/", include: ["jobs", "vacancy", "post"] },
-  { sourcePortal: "PTS", sourceUrl: "https://pts.org.pk/", include: ["job", "vacancy", "post"] },
-  { sourcePortal: "OTS", sourceUrl: "https://ots.org.pk/", include: ["job", "vacancy", "post"] }
+  { sourcePortal: "NTS", sourceUrl: "https://www.nts.org.pk/new", include: ["job", "vacancy", "post", "recruit", "test"] },
+  { sourcePortal: "FPSC", sourceUrl: "https://www.fpsc.gov.pk/", include: ["advertisement", "job", "vacancy", "post", "ministry"] },
+  { sourcePortal: "PPSC", sourceUrl: "https://www.ppsc.gop.pk/", include: ["jobs", "vacancy", "post", "department"] },
+  { sourcePortal: "SPSC", sourceUrl: "https://www.spsc.gov.pk/", include: ["jobs", "vacancy", "post", "department"] },
+  { sourcePortal: "BPSC", sourceUrl: "https://www.bpsc.gob.pk/", include: ["jobs", "vacancy", "post", "department"] },
+  { sourcePortal: "KPPSC", sourceUrl: "https://www.kppsc.gov.pk/", include: ["jobs", "vacancy", "post", "test"] },
+  { sourcePortal: "PTS", sourceUrl: "https://pts.org.pk/", include: ["job", "vacancy", "post", "test"] },
+  { sourcePortal: "OTS", sourceUrl: "https://ots.org.pk/", include: ["job", "vacancy", "post", "test"] },
+  { sourcePortal: "Rozee", sourceUrl: "https://www.rozee.pk/job/jsearch/q/government", include: ["government", "public sector", "authority", "department"] },
+  { sourcePortal: "Dawn", sourceUrl: "https://www.dawn.com/newspaper/classifieds/8", include: ["government", "public sector", "authority", "department"] },
+  { sourcePortal: "Express", sourceUrl: "https://www.express.com.pk/epaper/Jobs", include: ["government", "public sector", "authority", "department"] },
+  { sourcePortal: "Mustakbil", sourceUrl: "https://www.mustakbil.com/jobs/pakistan/government", include: ["government", "public sector", "authority", "department"] }
 ];
 
 function normalizeText(value: string) {
@@ -49,11 +58,23 @@ async function scrapeSource(source: BasicSource) {
   const rows = new Map<string, { title: string; url: string }>();
 
   $("a[href]").each((_index, element) => {
-    const title = $(element).text().replace(/\s+/g, " ").trim();
+    const title = sanitizeText($(element).text().replace(/\s+/g, " ").trim());
     const href = $(element).attr("href") ?? "";
     const url = getAbsoluteUrl(source.sourceUrl, href);
     if (!url || !title) return;
+    if (title.length < 8) return;
     if (!isLikelyGovPosting(title, source.include)) return;
+    if (
+      !isLikelyGovernmentListing({
+        portalName: source.sourcePortal.toLowerCase(),
+        title,
+        company: source.sourcePortal,
+        description: title,
+        tags: ["government", source.sourcePortal.toLowerCase()]
+      })
+    ) {
+      return;
+    }
     rows.set(url, { title, url });
   });
 

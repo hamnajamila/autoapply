@@ -8,6 +8,7 @@ import { logger } from "../config/logger";
 import { PortalRegistry } from "../services/portals/PortalRegistry";
 import { enqueueMatch, type ScrapeJobData } from "./queues";
 import { rankListingsForProfile } from "../services/llm/resumeKeywords";
+import { sanitizeText } from "../utils/text";
 
 async function logError(context: string, err: unknown, metadata?: unknown) {
   try {
@@ -37,11 +38,11 @@ async function upsertJobs(jobs: JobListing[]) {
         data: {
           portalName: j.portalName,
           externalId: j.externalId,
-          title: j.title,
-          company: j.company,
+          title: sanitizeText(j.title),
+          company: sanitizeText(j.company),
           companyLogoUrl: j.companyLogoUrl ?? null,
-          location: j.location ?? "Remote",
-          description: j.description,
+          location: sanitizeText(j.location) || "Remote",
+          description: sanitizeText(j.description),
           applyUrl: j.applyUrl,
           salaryMin: j.salaryMin ?? null,
           salaryMax: j.salaryMax ?? null,

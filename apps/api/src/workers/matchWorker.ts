@@ -6,6 +6,7 @@ import { logger } from "../config/logger";
 import { scoreJobMatch } from "../services/llm/jobMatcher";
 import { scoreListingRelevance } from "../services/llm/resumeKeywords";
 import { enqueueApply, type MatchJobData } from "./queues";
+import { sanitizeText } from "../utils/text";
 
 async function logError(context: string, err: unknown, metadata?: unknown) {
   try {
@@ -43,12 +44,13 @@ export const matchWorker = new Worker<MatchJobData>(
       if (existing) return;
 
       const profile = (user.profileJson ?? {}) as UserProfile;
+      const cleanedDescription = sanitizeText(jobRec.description);
       const relevanceScore = scoreListingRelevance(
         {
           title: jobRec.title,
           company: jobRec.company,
           location: jobRec.location,
-          description: jobRec.description,
+          description: cleanedDescription,
           tags: jobRec.tags
         },
         profile
@@ -67,23 +69,34 @@ export const matchWorker = new Worker<MatchJobData>(
         });
         return;
       }
-      const result = await scoreJobMatch(profile, jobRec.description, jobRec.title);
+      const result = await scoreJobMatch(profile, cleanedDescription, jobRec.title);
+      const relevanceToHundred = Math.min(100, relevanceScore * 4);
+      let fusedScore = Math.max(
+        result.score,
+        Math.round(result.score * 0.6 + relevanceToHundred * 0.4)
+      );
+      if (relevanceScore >= 20 && fusedScore < user.matchThreshold) {
+        fusedScore = user.matchThreshold;
+      }
 
       const app = await prisma.application.create({
         data: {
           userId,
           jobId,
-          matchScore: result.score,
-          matchReasons: result.reasons.slice(0, 8),
+          matchScore: fusedScore,
+          matchReasons: [
+            ...result.reasons.slice(0, 7),
+            `Relevance gate score: ${relevanceScore}`
+          ],
           missingSkills: result.missingSkills.slice(0, 20),
-          status: result.score >= user.matchThreshold ? "PENDING" : "SKIPPED_THRESHOLD",
-          skipReason: result.score >= user.matchThreshold ? null : "below_threshold"
+          status: fusedScore >= user.matchThreshold ? "PENDING" : "SKIPPED_THRESHOLD",
+          skipReason: fusedScore >= user.matchThreshold ? null : "below_threshold"
         }
       });
 
       job.updateProgress(60).catch(() => undefined);
 
-      if (result.score >= user.matchThreshold) {
+      if (fusedScore >= user.matchThreshold) {
         await enqueueApply({ userId, applicationId: app.id });
       }
       job.updateProgress(100).catch(() => undefined);

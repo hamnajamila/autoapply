@@ -5,6 +5,7 @@ import { authenticate } from "../middleware/authenticate";
 import { validate } from "../middleware/validate";
 import { readPreferences } from "../utils/userPreferences";
 import { scrapeAndStoreGovJobs } from "../services/govJobs/basicGovScraper";
+import { isLikelyGovernmentListing } from "../utils/jobClassification";
 
 const router = Router();
 
@@ -33,7 +34,7 @@ router.get("/", authenticate, validate({ query: ListQuery }), async (req, res, n
     const q = req.query as unknown as z.infer<typeof ListQuery>;
     const jobs = await prisma.job.findMany({
       where: {
-        portalName: { in: GOV_PORTALS },
+        OR: [{ portalName: { in: GOV_PORTALS } }, { tags: { has: "government" } }],
         ...(q.keyword
           ? {
               OR: [
@@ -45,10 +46,12 @@ router.get("/", authenticate, validate({ query: ListQuery }), async (req, res, n
           : {})
       },
       orderBy: { scrapedAt: "desc" },
-      take: 200
+      take: 300
     });
 
-    const filtered = jobs.filter((job) => (q.source ? job.portalName === q.source : true));
+    const filtered = jobs
+      .filter((job) => isLikelyGovernmentListing(job))
+      .filter((job) => (q.source ? job.portalName === q.source : true));
 
     const user = await prisma.user.findUnique({ where: { id: req.auth!.userId }, select: { preferences: true } });
     const prefs = readPreferences(user?.preferences);
@@ -72,20 +75,23 @@ router.get("/", authenticate, validate({ query: ListQuery }), async (req, res, n
 router.get("/stats", authenticate, async (_req, res, next) => {
   try {
     const govJobs = await prisma.job.findMany({
-      where: { portalName: { in: GOV_PORTALS } },
-      take: 500,
+      where: {
+        OR: [{ portalName: { in: GOV_PORTALS } }, { tags: { has: "government" } }]
+      },
+      take: 600,
       orderBy: { scrapedAt: "desc" }
     });
+    const filteredGovJobs = govJobs.filter((job) => isLikelyGovernmentListing(job));
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const byPortal = govJobs.reduce<Record<string, number>>((accumulator, job) => {
+    const byPortal = filteredGovJobs.reduce<Record<string, number>>((accumulator, job) => {
       accumulator[job.portalName] = (accumulator[job.portalName] ?? 0) + 1;
       return accumulator;
     }, {});
 
     return res.json({
-      total: govJobs.length,
-      newToday: govJobs.filter((job) => job.scrapedAt >= today).length,
+      total: filteredGovJobs.length,
+      newToday: filteredGovJobs.filter((job) => job.scrapedAt >= today).length,
       sourcesActive: Object.keys(byPortal).length,
       byPortal
     });
