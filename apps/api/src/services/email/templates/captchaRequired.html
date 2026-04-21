@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AutoApply - CAPTCHA Required</title>
+    <style>
+      body { margin: 0; padding: 0; background: #020617; font-family: Arial, sans-serif; color: #e2e8f0; }
+      .wrapper { width: 100%; padding: 24px 12px; }
+      .card { max-width: 600px; margin: 0 auto; background: #0f172a; border: 1px solid #1e293b; border-radius: 20px; overflow: hidden; }
+      .header { padding: 28px 32px 20px; background: linear-gradient(135deg, #92400e, #f59e0b); }
+      .header h1 { margin: 0; font-size: 28px; color: #ffffff; }
+      .header p { margin: 10px 0 0; color: #fef3c7; font-size: 14px; }
+      .content { padding: 28px 32px; }
+      .pill { display: inline-block; margin-bottom: 18px; padding: 8px 12px; border-radius: 999px; background: rgba(245, 158, 11, 0.15); color: #fde68a; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+      table { width: 100%; border-collapse: collapse; margin: 20px 0; background: #111c34; border-radius: 14px; overflow: hidden; }
+      td { padding: 14px 16px; border-bottom: 1px solid #1e293b; font-size: 14px; }
+      td:first-child { width: 38%; color: #94a3b8; }
+      .notice { margin-top: 20px; padding: 16px; border-radius: 14px; background: rgba(245, 158, 11, 0.12); color: #fde68a; font-size: 14px; }
+      .actions { margin-top: 28px; }
+      .button { display: inline-block; margin-right: 12px; margin-bottom: 12px; padding: 12px 18px; border-radius: 12px; background: #6366f1; color: #ffffff !important; text-decoration: none; font-weight: 700; }
+      .button.secondary { background: #1e293b; }
+      .footer { padding: 20px 32px 28px; color: #94a3b8; font-size: 12px; line-height: 1.6; }
+      .footer a { color: #c7d2fe; }
+      @media (max-width: 640px) {
+        .header, .content, .footer { padding-left: 20px; padding-right: 20px; }
+        td { display: block; width: 100%; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <div class="card">
+        <div class="header">
+          <h1>Manual action required</h1>
+          <p>A CAPTCHA blocked the automated application flow for this job.</p>
+        </div>
+        <div class="content">
+          <div class="pill">CAPTCHA detected</div>
+          <p>AutoApply stopped rather than trying to bypass the protection. You can open the job directly and apply manually.</p>
+          <table>
+            <tr><td>Company</td><td>{{company}}</td></tr>
+            <tr><td>Job title</td><td>{{jobTitle}}</td></tr>
+            <tr><td>Job link</td><td><a href="{{jobUrl}}" style="color:#a5b4fc;">Open posting</a></td></tr>
+          </table>
+          <div class="notice">
+            The application record was preserved in your dashboard and marked as a CAPTCHA skip so your history stays accurate.
+          </div>
+          <div class="actions">
+            <a class="button" href="{{jobUrl}}">Apply manually</a>
+            <a class="button secondary" href="{{dashboardUrl}}">View dashboard</a>
+          </div>
+        </div>
+        <div class="footer">
+          Pause the agent if you want to stop further runs while you handle this manually.
+          <br />
+          <a href="{{pauseUrl}}">Pause Agent</a> |
+          <a href="{{dashboardUrl}}">View Dashboard</a>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

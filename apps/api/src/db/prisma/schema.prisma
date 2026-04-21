@@ -1,0 +1,135 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String              @id @default(cuid())
+  email              String              @unique
+  passwordHash       String?
+  name               String?
+  avatarUrl          String?
+  resumeText         String?             @db.Text
+  resumeFileUrl      String?
+  profileJson        Json?
+  preferences        Json?
+  matchThreshold     Int                 @default(70)
+  agentEnabled       Boolean             @default(false)
+  agentSchedule      String              @default("0 */2 * * *")
+  lastAgentRun       DateTime?
+  emailNotifications Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  portalCredentials  PortalCredential[]
+  customPortals      CustomPortal[]
+  applications       Application[]
+  emailLogs          EmailLog[]
+}
+
+model PortalCredential {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portalName    String
+  encryptedData String   @db.Text
+  cookiesJson   String?  @db.Text
+  isActive      Boolean  @default(true)
+  lastSynced    DateTime?
+  lastError     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  @@unique([userId, portalName])
+}
+
+model Job {
+  id              String        @id @default(cuid())
+  portalName      String
+  externalId      String
+  title           String
+  company         String
+  companyLogoUrl  String?
+  location        String        @default("Remote")
+  description     String        @db.Text
+  applyUrl        String
+  salaryMin       Int?
+  salaryMax       Int?
+  salaryCurrency  String?
+  jobType         String?
+  tags            String[]
+  isRemote        Boolean       @default(true)
+  postedAt        DateTime?
+  scrapedAt       DateTime      @default(now())
+  applications    Application[]
+  @@unique([portalName, externalId])
+}
+
+model Application {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId            String
+  job              Job       @relation(fields: [jobId], references: [id])
+  status           AppStatus @default(PENDING)
+  matchScore       Int
+  matchReasons     String[]
+  missingSkills    String[]
+  screenshotBefore String?   @db.Text
+  screenshotAfter  String?   @db.Text
+  skipReason       String?
+  errorMessage     String?   @db.Text
+  appliedAt        DateTime?
+  emailSentAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+enum AppStatus {
+  PENDING
+  SUBMITTED
+  FAILED
+  SKIPPED_THRESHOLD
+  SKIPPED_DUPLICATE
+  SKIPPED_CAPTCHA
+  SKIPPED_MANUAL
+  UNCERTAIN
+}
+
+model EmailLog {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject        String
+  templateName   String
+  recipientEmail String
+  sentAt         DateTime @default(now())
+  success        Boolean
+  errorMessage   String?
+}
+
+model ErrorLog {
+  id        String   @id @default(cuid())
+  context   String
+  message   String   @db.Text
+  stack     String?  @db.Text
+  metadata  Json?
+  createdAt DateTime @default(now())
+}
+
+model CustomPortal {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  url         String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, name])
+}
+

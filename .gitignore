@@ -2,10 +2,15 @@ node_modules/
 dist/
 .next/
 .env
+.env.local
 uploads/
 *.log
 coverage/
 .DS_Store
 *.pem
+*.tsbuildinfo
+.npmrc
+.runtime-logs/
+.tmp-ui-zip/
 apps/api/src/db/prisma/migrations/
 

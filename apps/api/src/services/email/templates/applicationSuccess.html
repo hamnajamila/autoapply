@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AutoApply - Application Submitted</title>
+    <style>
+      body { margin: 0; padding: 0; background: #020617; font-family: Arial, sans-serif; color: #e2e8f0; }
+      .wrapper { width: 100%; padding: 24px 12px; }
+      .card { max-width: 600px; margin: 0 auto; background: #0f172a; border: 1px solid #1e293b; border-radius: 20px; overflow: hidden; }
+      .header { padding: 28px 32px 20px; background: linear-gradient(135deg, #312e81, #6366f1); }
+      .header h1 { margin: 0; font-size: 28px; color: #ffffff; }
+      .header p { margin: 10px 0 0; color: #e0e7ff; font-size: 14px; }
+      .content { padding: 28px 32px; }
+      .pill { display: inline-block; margin-bottom: 18px; padding: 8px 12px; border-radius: 999px; background: rgba(16, 185, 129, 0.15); color: #a7f3d0; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+      table { width: 100%; border-collapse: collapse; margin: 20px 0; background: #111c34; border-radius: 14px; overflow: hidden; }
+      td { padding: 14px 16px; border-bottom: 1px solid #1e293b; font-size: 14px; }
+      td:first-child { width: 38%; color: #94a3b8; }
+      .reasons { margin: 20px 0 0; padding-left: 18px; }
+      .reasons li { margin-bottom: 10px; color: #cbd5e1; }
+      .actions { margin-top: 28px; }
+      .button { display: inline-block; margin-right: 12px; margin-bottom: 12px; padding: 12px 18px; border-radius: 12px; background: #6366f1; color: #ffffff !important; text-decoration: none; font-weight: 700; }
+      .button.secondary { background: #1e293b; }
+      .footer { padding: 20px 32px 28px; color: #94a3b8; font-size: 12px; line-height: 1.6; }
+      .footer a { color: #c7d2fe; }
+      @media (max-width: 640px) {
+        .header, .content, .footer { padding-left: 20px; padding-right: 20px; }
+        td { display: block; width: 100%; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <div class="card">
+        <div class="header">
+          <h1>Application submitted</h1>
+          <p>AutoApply successfully completed a job application for you.</p>
+        </div>
+        <div class="content">
+          <div class="pill">Application success</div>
+          <p>Your agent just submitted a new application. Here are the details that were recorded for this run.</p>
+          <table>
+            <tr><td>Company</td><td>{{company}}</td></tr>
+            <tr><td>Job title</td><td>{{jobTitle}}</td></tr>
+            <tr><td>Portal</td><td>{{portalName}}</td></tr>
+            <tr><td>Match score</td><td>{{matchScore}}</td></tr>
+            <tr><td>Submitted at</td><td>{{appliedAt}}</td></tr>
+            <tr><td>Job link</td><td><a href="{{jobUrl}}" style="color:#a5b4fc;">Open posting</a></td></tr>
+          </table>
+          <h2 style="font-size:18px; margin:24px 0 12px;">Why this matched</h2>
+          <ul class="reasons">
+            <li>{{reason1}}</li>
+            <li>{{reason2}}</li>
+            <li>{{reason3}}</li>
+          </ul>
+          <div class="actions">
+            <a class="button" href="{{jobUrl}}">View job</a>
+            <a class="button secondary" href="{{dashboardUrl}}">View dashboard</a>
+          </div>
+        </div>
+        <div class="footer">
+          Pause the agent any time if you want to review jobs manually.
+          <br />
+          <a href="{{pauseUrl}}">Pause Agent</a> |
+          <a href="{{dashboardUrl}}">View Dashboard</a>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

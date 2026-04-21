@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AutoApply - Weekly Summary</title>
+    <style>
+      body { margin: 0; padding: 0; background: #020617; font-family: Arial, sans-serif; color: #e2e8f0; }
+      .wrapper { width: 100%; padding: 24px 12px; }
+      .card { max-width: 600px; margin: 0 auto; background: #0f172a; border: 1px solid #1e293b; border-radius: 20px; overflow: hidden; }
+      .header { padding: 28px 32px 20px; background: linear-gradient(135deg, #312e81, #6366f1); }
+      .header h1 { margin: 0; font-size: 28px; color: #ffffff; }
+      .header p { margin: 10px 0 0; color: #e0e7ff; font-size: 14px; }
+      .content { padding: 28px 32px; }
+      .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
+      .stat { background: #111c34; border: 1px solid #1e293b; border-radius: 16px; padding: 16px; }
+      .stat-label { font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; }
+      .stat-value { margin-top: 8px; font-size: 26px; font-weight: 700; color: #ffffff; }
+      .match-list { margin: 0; padding-left: 18px; }
+      .match-list li { margin-bottom: 10px; color: #cbd5e1; }
+      .actions { margin-top: 28px; }
+      .button { display: inline-block; margin-right: 12px; margin-bottom: 12px; padding: 12px 18px; border-radius: 12px; background: #6366f1; color: #ffffff !important; text-decoration: none; font-weight: 700; }
+      .button.secondary { background: #1e293b; }
+      .footer { padding: 20px 32px 28px; color: #94a3b8; font-size: 12px; line-height: 1.6; }
+      .footer a { color: #c7d2fe; }
+      @media (max-width: 640px) {
+        .header, .content, .footer { padding-left: 20px; padding-right: 20px; }
+        .stats { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <div class="card">
+        <div class="header">
+          <h1>Your weekly summary</h1>
+          <p>Here is a quick look at how AutoApply performed this week.</p>
+        </div>
+        <div class="content">
+          <div class="stats">
+            <div class="stat">
+              <div class="stat-label">Submitted</div>
+              <div class="stat-value">{{totalApplied}}</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Failed</div>
+              <div class="stat-value">{{failedCount}}</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Top matches</div>
+              <div class="stat-value">{{topMatchCount}}</div>
+            </div>
+          </div>
+          <h2 style="font-size:18px; margin:0 0 12px;">Top match highlights</h2>
+          <ul class="match-list">
+            <li>{{topMatch1}}</li>
+            <li>{{topMatch2}}</li>
+            <li>{{topMatch3}}</li>
+          </ul>
+          <div class="actions">
+            <a class="button" href="{{dashboardUrl}}">Open dashboard</a>
+            <a class="button secondary" href="{{pauseUrl}}">Pause Agent</a>
+          </div>
+        </div>
+        <div class="footer">
+          Keep your profile and portal connections up to date for better matches.
+          <br />
+          <a href="{{pauseUrl}}">Pause Agent</a> |
+          <a href="{{dashboardUrl}}">View Dashboard</a>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
